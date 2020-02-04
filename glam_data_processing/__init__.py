@@ -99,6 +99,14 @@ class ToDoList:
 		a list of string dates (%Y-%m-%d), representing potentially available chirps preliminary data files
 	merra:list
 		a list of string dates (%Y-%m-%d), representing potentially available merra-2 files
+	mod09q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MOD09Q1 files
+	myd09q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MYD09Q1 files
+	mod13q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MOD13Q1 files
+	myd13q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MYD13Q1 files
 	swi:list
 		a list of string dates (%Y-%m-%d), representing potentially available swi files
 
@@ -250,10 +258,26 @@ class ToDoList:
 
 			return getDbSwi() + getChronoSwi()
 
+		def getAllMod09q1() -> list:
+			pass
+
+		def getAllMyd09q1() -> list:
+			pass
+
+		def getAllMod13q1() -> list:
+			pass
+
+		def getAllMyd13q1() -> list:
+			pass
+
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
 		self.chirps_prelim = getAllChirpsPrelim()
 		self.swi = getAllSwi()
+		self.mod09q1 = getAllMod09q1()
+		self.myd09q1 = getAllMyd09q1()
+		self.mod13q1 = getAllMod13q1()
+		self.myd13q1 = getAllMyd13q1()
 		self.timestamp = datetime.now()
 		self.filtered = False
 
@@ -263,6 +287,10 @@ class ToDoList:
 		self.chirps_prelim = [f for f in self.chirps_prelim if filterMachine.isAvailable('chirps-prelim',f)]
 		self.merra = [f for f in self.merra if filterMachine.isAvailable('merra-2',f)]
 		self.swi = [f for f in self.swi if filterMachine.isAvailable('swi',f)]
+		self.mod09q1 = [f for f in self.mod09q1 if len(octvi.url.getDates("MOD09Q1",f)) > 0]
+		self.myd09q1 = [f for f in self.myd09q1 if len(octvi.url.getDates("MYD09Q1",f)) > 0]
+		self.mod13q1 = [f for f in self.mod13q1 if len(octvi.url.getDates("MOD13Q1",f)) > 0]
+		self.myd13q1 = [f for f in self.myd13q1 if len(octvi.url.getDates("MYD13Q1",f)) > 0]
 		self.filtered = True
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
