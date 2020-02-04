@@ -1142,7 +1142,8 @@ class Image:
 		mysql_db = 'modis_dev'
 	except KeyError:
 		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')	metadata = db.MetaData()
+	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+	metadata = db.MetaData()
 	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
 	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
