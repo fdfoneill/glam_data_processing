@@ -22,11 +22,11 @@ This module offers two classes used for image ingestion and stats generation: on
 
 ### Ancillary Ingestion
 
-Handling of ancillary products (CHIRPS rainfall, MERRA-2 temperature, and Soil Water Index) should be done through the `AncillaryImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
+Handling of ancillary products (CHIRPS rainfall, MERRA-2 temperature, and Soil Water Index) should be done through the `AncillaryImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above). Date format for ancillary files is "%Y-%m-%d"; e.g. "2019-01-01".
 
 ### NDVI Ingestion
 
-Handling of NDVI products (M\*D09Q1, M\*D13Q1, etc) should be done through the `ModisImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
+Handling of NDVI products (M\*D09Q1, M\*D13Q1, etc) should be done through the `ModisImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above). Date formatting for NDVI files is "%Y.%j"; e.g. "2019.001".
 
 # License
 
