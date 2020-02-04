@@ -1,0 +1,3 @@
+# .gitignore
+__pycache__
+python-virtual-environments
