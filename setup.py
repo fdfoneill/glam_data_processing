@@ -38,6 +38,9 @@ setup(name='glam_data_processing',
 		# console scripts
 		entry_points = {
 
-			'console_scripts': ['glamconfigure=glam_data_processing.command_line:setCredentials']
+			'console_scripts': [
+				'glamconfigure=glam_data_processing.command_line:setCredentials',
+				'glamupdatedata=glam_data_processing.command_line:updateData'
+				]
 			}
 		)
