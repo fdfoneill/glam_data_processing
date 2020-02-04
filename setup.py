@@ -28,7 +28,7 @@ setup(name='glam_data_processing',
 			'terracotta',
 			'sqlalchemy',
 			'gdal'
-			]
+			],
 		# tests
 		test_suite='nose.collector',
 		tests_require=[
