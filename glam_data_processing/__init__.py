@@ -110,7 +110,15 @@ class ToDoList:
 		removes images that are not yet available for download
 	"""
 
-	engine = db.create_engine('mysql+pymysql://tcadmin:tcdevtest@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/modis_dev')
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+	except KeyError:
+		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+
+	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
 	metadata = db.MetaData()
 	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
@@ -1127,8 +1135,14 @@ class Image:
 		Calculates and uploads all statistics for the given data file to the database 
 	"""
 
-	engine = db.create_engine('mysql+pymysql://tcadmin:tcdevtest@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/modis_dev')
-	metadata = db.MetaData()
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+	except KeyError:
+		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')	metadata = db.MetaData()
 	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
 	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
@@ -1778,7 +1792,14 @@ class ModisImage(Image):
 		Calculates and uploads all statistics for the given data file to the database
 	"""
 
-	engine = db.create_engine('mysql+pymysql://tcadmin:tcdevtest@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/modis_dev')
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+	except KeyError:
+		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
 	metadata = db.MetaData()
 	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
@@ -1823,7 +1844,7 @@ class ModisImage(Image):
 			mysql_db = 'modis_dev'
 		except KeyError:
 			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-			
+
 		mysql_db = 'modis_dev'
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
@@ -2120,9 +2141,17 @@ def purge(product, date, auth_key):
 		log.error(f"Unauthorized with key: '{auth_key}'")
 		return None
 
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+	except KeyError:
+		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+
 	else:
 		# setup
-		engine = db.create_engine('mysql+pymysql://tcadmin:tcdevtest@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/modis_dev')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
 
 		# pull file to disk to get information
 		downloader = Downloader()
