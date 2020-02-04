@@ -1255,8 +1255,7 @@ class Image:
 			mysql_pass = os.environ['glam_mysql_pass']
 			mysql_db = 'modis_dev'
 		except KeyError:
-			log.error("Database credentials not set.\nUse 'glamconfigure' on command line to set archive credentials.")
-			return False
+			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
 
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
@@ -1279,10 +1278,13 @@ class Image:
 		## upload file to s3 bucket
 		log.debug("-uploading file to s3 bucket")
 		def upload_file_s3(upload_file,bucket) -> bool:
-			s3_client = boto3.client('s3',
-				aws_access_key_id=os.environ['AWS_accessKeyId'],
-				aws_secret_access_key=os.environ['AWS_secretAccessKey']
-				)
+			try:
+				s3_client = boto3.client('s3',
+					aws_access_key_id=os.environ['AWS_accessKeyId'],
+					aws_secret_access_key=os.environ['AWS_secretAccessKey']
+					)
+			except KeyError:
+				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found.\nUse 'aws configure' on the command line.")
 			
 			b = bucket.split("/")[0]
 			k = bucket.split("/")[1]+"/"+os.path.basename(upload_file)
@@ -1815,8 +1817,13 @@ class ModisImage(Image):
 		file_name = os.path.basename(self.path) # extracts directory of image file
 		s3_bucket = 'glam-tc-data/rasters/' # name of s3 bucket
 		# mysql credentials
-		mysql_user = 'tcadmin'
-		mysql_pass = 'tcdevtest'
+		try:
+			mysql_user = os.environ['glam_mysql_user']
+			mysql_pass = os.environ['glam_mysql_pass']
+			mysql_db = 'modis_dev'
+		except KeyError:
+			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+			
 		mysql_db = 'modis_dev'
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
@@ -1839,10 +1846,13 @@ class ModisImage(Image):
 		## upload file to s3 bucket
 		log.debug("-uploading file to s3 bucket")
 		def upload_file_s3(upload_file,bucket) -> bool:
-			s3_client = boto3.client('s3',
-				aws_access_key_id=os.environ['AWS_accessKeyId'],
-				aws_secret_access_key=os.environ['AWS_secretAccessKey']
-				)
+			try:
+				s3_client = boto3.client('s3',
+					aws_access_key_id=os.environ['AWS_accessKeyId'],
+					aws_secret_access_key=os.environ['AWS_secretAccessKey']
+					)
+			except KeyError:
+				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found.\nUse 'aws configure' on the command line.")
 			
 			b = bucket.split("/")[0]
 			k = bucket.split("/")[1]+"/"+os.path.basename(upload_file)
