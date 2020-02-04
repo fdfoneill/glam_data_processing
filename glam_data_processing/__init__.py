@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
 ## import modules
-import sys, glob, gdal, boto3, hashlib, math, gzip, shutil, requests, ftplib, re, subprocess, collections, urllib
+import sys, glob, gdal, boto3, hashlib, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from gdalnumeric import *
