@@ -1,10 +1,10 @@
 # glam_data_processing
 
-This module is designed to facilitate interaction with the various data products used in the GLAM system, particularly the "ancillary" data products that fall outside the usual Vegetation Indices. These products can be downloaded and processed by `glam_data_processing`, while NDVI products can be processed but not downloaded. For downloading of GLAM NDVI products, see the [`octvi`]"https://github.com/fdfoneill/octvi" module.
+This module is designed to facilitate interaction with the various data products used in the GLAM system, particularly the "ancillary" data products that fall outside the usual Vegetation Indices. These products can be downloaded and processed by `glam_data_processing`, while NDVI products can be processed but not downloaded. For downloading of GLAM NDVI products, see the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> module.
 
 # Motivation
 
-`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system. When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for the ancillary data products, and almost all of it for NDVI products (downloading is left to [`octvi`]"https://github.com/fdfoneill/octvi").
+`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system. When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for the ancillary data products, and almost all of it for NDVI products (downloading is left to <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code>).
 
 # Features
 
@@ -34,4 +34,4 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE...
