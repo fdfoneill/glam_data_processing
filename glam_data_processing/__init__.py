@@ -70,6 +70,12 @@ class RecordNotFoundError(Exception):
 	def __str__(self):
 		return repr(self.data)
 
+class NoCredentialsError(Exception):
+	def __init__(self,data):
+		self.data=data
+	def __str__(self):
+		return repr(self.data)
+
 ## other class definitions
 
 # instance creates and stores list of pending-download files for each type (merra,chirps,swi). Note that the attribute is named merra and not merra-2
@@ -279,10 +285,17 @@ class Downloader:
 	pullFromS3(product:str,date:str,out_dir:str) -> bool:
 		locates and downloads requested product from aws S3 bucket if possible, returns False if not
 	"""
-	merraUsername = "fdfoneill"
-	merraPassword = "Fourthree2"
-	swiUsername = "geoglam"
-	swiPassword = "geoglam!23"
+
+	credentials = False
+	try:
+		merraUsername = os.environ['merrausername']
+		merraPassword = os.environ['merrapassword']
+		swiUsername = os.environ['swiusername']
+		swiPassword = os.environ['swipassword']
+		credentials = True
+	except KeyError:
+		log.warning("Data archive credentials not set. The following functionality will be unavailable:\n\tDownloader.isAvailable()\n\tDownloader.pullFromSource()\nUse 'glamconfigure' on command line to set archive credentials.")
+
 
 	def __repr__(self):
 		return f"<Instance of Downloader, address {id(self)}>"
@@ -401,6 +414,8 @@ class Downloader:
 				#log.error("Connection reset error; Copernicus kicked you off")
 				#return False
 
+		if not credentials:
+			raise NoCredentialsError("Data archive credentials not set. Use 'glamconfigure' on command line to set credentials.")
 		actions = {'merra-2':checkMerra,'chirps':checkChirps,'chirps-prelim':checkChirpsPrelim,'swi':checkSwi}
 		return actions[product](date)
 
@@ -1235,9 +1250,14 @@ class Image:
 		file_name = os.path.basename(self.path) # extracts directory of image file
 		s3_bucket = 'glam-tc-data/rasters/' # name of s3 bucket
 		# mysql credentials
-		mysql_user = 'tcadmin'
-		mysql_pass = 'tcdevtest'
-		mysql_db = 'modis_dev'
+		try:
+			mysql_user = os.environ['glam_mysql_user']
+			mysql_pass = os.environ['glam_mysql_pass']
+			mysql_db = 'modis_dev'
+		except KeyError:
+			log.error("Database credentials not set.\nUse 'glamconfigure' on command line to set archive credentials.")
+			return False
+
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
 
