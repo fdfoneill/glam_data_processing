@@ -14,6 +14,7 @@ setup(name='glam_data_processing',
 		version='1.0.0',
 		description='Data downloading and handling for GLAM system',
 		long_description=readme(),
+		long_description_content_type='text/markdown',
 		author="F. Dan O'Neill",
 		author_email='fdfoneill@gmail.com',
 		license='MIT',
@@ -36,5 +37,11 @@ setup(name='glam_data_processing',
 			],
 		zip_safe=False,
 		# console scripts
-		entry_points = {}
+		entry_points = {
+
+			'console_scripts': [
+				'glamconfigure=glam_data_processing.command_line:setCredentials',
+				'glamupdatedata=glam_data_processing.command_line:updateData'
+				]
+			}
 		)
