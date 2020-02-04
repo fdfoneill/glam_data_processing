@@ -422,7 +422,7 @@ class Downloader:
 				#log.error("Connection reset error; Copernicus kicked you off")
 				#return False
 
-		if not credentials:
+		if not self.credentials:
 			raise NoCredentialsError("Data archive credentials not set. Use 'glamconfigure' on command line to set credentials.")
 		actions = {'merra-2':checkMerra,'chirps':checkChirps,'chirps-prelim':checkChirpsPrelim,'swi':checkSwi}
 		return actions[product](date)
