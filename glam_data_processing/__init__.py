@@ -145,7 +145,15 @@ class ToDoList:
 		for d in self.merra:
 			yield ("merra-2",d)
 		for d in self.swi:
-			yield("swi",d)
+			yield ("swi",d)
+		for d in self.mod09q1:
+			yield ("MOD09Q1",d)
+		for d in self.myd09q1:
+			yield ("MYD09Q1",d)
+		for d in self.mod13q1:
+			yield ("MOD13Q1",d)
+		for d in self.myd13q1:
+			yield ("MYD13Q1",d)
 
 	def __call__(self):
 		for f in self:
@@ -259,16 +267,80 @@ class ToDoList:
 			return getDbSwi() + getChronoSwi()
 
 		def getAllMod09q1() -> list:
-			pass
+			"""Return list of string dates of all missing MOD09Q1 files"""
+
+			def getChronoMod09q1() -> list:
+				"""Return list of string dates of MOD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MOD09Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					latest = latest + timedelta(days = 8)
+					log.debug(f"Found missing file in valid date range: MOD09Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MOD09Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MOD09Q1") + getChronoMod09q1()
 
 		def getAllMyd09q1() -> list:
-			pass
+			"""Return list of string dates of all missing MYD09Q1 files"""
+
+			def getChronoMyd09q1() -> list:
+				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MYD09Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					latest = latest + timedelta(days = 8)
+					log.debug(f"Found missing file in valid date range: MYD09Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MYD09Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MYD09Q1") + getChronoMyd09q1()
 
 		def getAllMod13q1() -> list:
-			pass
+			"""Return list of string dates of all missing MOD13Q1 files"""
+			
+			def getChronoMod13q1() -> list:
+				"""Return list of string dates for MOD13Q1 files between last database entry and current time"""
+				latest = getLatestDate("MOD13Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					latest = latest + timedelta(days = 16)
+					log.debug(f"Found missing file in valid date range: MOD13Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MOD13Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MOD13Q1") + getChronoMod13q1()
 
 		def getAllMyd13q1() -> list:
-			pass
+			"""Return list of string dates of all missing MYD13Q1 files"""
+			
+			def getChronoMyd13q1() -> list:
+				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MYD13Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					latest = latest + timedelta(days = 16)
+					log.debug(f"Found missing file in valid date range: MYD13Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MYD13Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
 
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
