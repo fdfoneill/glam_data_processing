@@ -1100,7 +1100,64 @@ class Downloader:
 			## return tuple of file path string
 			return tuple([out])
 
-		actions = {"swi":downloadSwi,"chirps":downloadChirps,"chirps-prelim":downloadChirpsPrelim,"merra-2":downloadMerra2}
+		def downloadMod09q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MOD09Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MOD09Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return (octvi.globalNdvi(product,date,outPath))
+
+		def downloadMyd09q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MYD09Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MYD09Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return (octvi.globalNdvi(product,date,outPath))
+
+		def downloadMod13q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MOD13Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MOD13Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return (octvi.globalNdvi(product,date,outPath))
+
+		def downloadMyd13q1 (date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MYD13Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MYD13Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return (octvi.globalNdvi(product,date,outPath))
+
+		actions = {
+			"swi":downloadSwi,
+			"chirps":downloadChirps,
+			"chirps-prelim":downloadChirpsPrelim,
+			"merra-2":downloadMerra2,
+			"MOD09Q1":downloadMod09q1,
+			"MYD09Q1":downloadMyd09q1,
+			"MOD13Q1":downloadMod13q1,
+			"MYD13Q1":downloadMyd13q1
+			}
 		return actions[product](date=date,out_dir=out_dir)
 
 	def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
