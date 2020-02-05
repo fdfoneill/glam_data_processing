@@ -1,16 +1,16 @@
 # glam_data_processing
 
-This module is designed to facilitate interaction with the various data products used in the GLAM system, particularly the "ancillary" data products that fall outside the usual Vegetation Indices. These products can be downloaded and processed by `glam_data_processing`, while NDVI products can be processed but not downloaded. For downloading of GLAM NDVI products, see the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> module.
+This module is designed to facilitate interaction with the various data products used in the GLAM system, both Normalized Difference Vegetation Index (NDVI) products and the "ancillary" data products that fall outside the usual Vegetation Indices. These products can be downloaded and processed by `glam_data_processing`.
 
 # Motivation
 
-`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system. When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for the ancillary data products, and almost all of it for NDVI products (downloading is left to <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code>).
+`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system. When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for both the NDVI and ancillary data products.
 
 # Features
 
 ## Downloading
 
-The `Downloader` class can be used to pull any available ancillary data product, whether from its source (NASA, Copernicus, etc.) or from the GLAM AWS S3 bucket. The `Downloader.pull()` method allows quick and easy retrieval of image files. The resulting file name is automatically formatted for use with `Image` objects (see below), allowing for efficient automation.
+The `Downloader` class can be used to pull any available data product, whether from its source (NASA, Copernicus, etc.) or from the GLAM AWS S3 bucket. The `Downloader.pull()` method allows quick and easy retrieval of image files. The resulting file name is automatically formatted for use with `Image` objects (see below), allowing for efficient automation. Downloading of NDVI products relies on the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> package.
 
 ## Ingestion and Statistics Generation
 
