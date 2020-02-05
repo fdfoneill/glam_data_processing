@@ -4,13 +4,17 @@ This module is designed to facilitate interaction with the various data products
 
 # Motivation
 
-`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system. When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for both the NDVI and ancillary data products.
+`glam_data_processing` was developed as part of the GLAM system's move to the cloud in 2019-2020. It provides a programmatic way to pull and ingest the necessary ancillary data, and offers reliable interaction with the AWS portion of the system.
+
+When working with the volume of data that we are, it's vital to have a re-usable, general engine for downloading imagery, uploading it to the cloud, and extracting the relevant statistics. This module provides all of that functionality for both the NDVI and ancillary data products.
 
 # Features
 
 ## Downloading
 
-The `Downloader` class can be used to pull any available data product, whether from its source (NASA, Copernicus, etc.) or from the GLAM AWS S3 bucket. The `Downloader.pull()` method allows quick and easy retrieval of image files. The resulting file name is automatically formatted for use with `Image` objects (see below), allowing for efficient automation. Downloading of NDVI products relies on the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> package.
+The `Downloader` class can be used to pull any available data product, whether from its source (NASA, Copernicus, etc.) or from the GLAM AWS S3 bucket. The `Downloader.pull()` method allows quick and easy retrieval of image files. The resulting file name is automatically formatted for use with `Image` objects (see below), allowing for efficient automation.
+
+Downloading of NDVI products relies on the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> package.
 
 ## Ingestion and Statistics Generation
 
@@ -22,11 +26,15 @@ This module offers two classes used for image ingestion and stats generation: on
 
 ### Ancillary Ingestion
 
-Handling of ancillary products (CHIRPS rainfall, MERRA-2 temperature, and Soil Water Index) should be done through the `AncillaryImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above). Date format for ancillary files is "%Y-%m-%d"; e.g. "2019-01-01".
+Handling of ancillary products (CHIRPS rainfall, MERRA-2 temperature, and Soil Water Index) should be done through the `AncillaryImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
+
+Date format for ancillary files is "%Y-%m-%d"; e.g. "2019-01-01".
 
 ### NDVI Ingestion
 
-Handling of NDVI products (M\*D09Q1, M\*D13Q1, etc) should be done through the `ModisImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above). Date formatting for NDVI files is "%Y.%j"; e.g. "2019.001".
+Handling of NDVI products (M\*D09Q1, M\*D13Q1, etc) should be done through the `ModisImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
+
+Date format for NDVI files is "%Y.%j"; e.g. "2019.001".
 
 # License
 
