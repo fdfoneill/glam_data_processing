@@ -1331,7 +1331,7 @@ class Image:
 
 
 	def __init__(self,file_path:str):
-		if noCred:
+		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
 		self.path = file_path
@@ -2004,7 +2004,7 @@ class ModisImage(Image):
 
 	# override init inheritance; MODIS dates are different
 	def __init__(self,file_path:str):
-		if noCred:
+		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
 		self.path = file_path
