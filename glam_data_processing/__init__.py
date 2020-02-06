@@ -83,6 +83,10 @@ class ToDoList:
 	"""
 	A class to generate and store lists of files that need to be checked for availability and, if available, downloaded
 
+	An instance of this class can, in addition to its attributes and methods, be treated as an iterator. It will yield
+	a series of tuples, of the form ("PRODUCT","DATE"), for the dates in all of its product attributes (see below). If
+	the instance is called (i.e. ToDoList()), each of these tuples will be printed.
+
 	...
 
 	Attributes
