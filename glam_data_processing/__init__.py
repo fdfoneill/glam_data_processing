@@ -1312,6 +1312,7 @@ class Image:
 	"""
 
 	# mysql credentials
+	noCred = None
 	try:
 		mysql_user = os.environ['glam_mysql_user']
 		mysql_pass = os.environ['glam_mysql_pass']
@@ -1326,9 +1327,12 @@ class Image:
 		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 	except KeyError:
 		log.warning("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+		noCred = True
 
 
 	def __init__(self,file_path:str):
+		if noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
@@ -2000,6 +2004,8 @@ class ModisImage(Image):
 
 	# override init inheritance; MODIS dates are different
 	def __init__(self,file_path:str):
+		if noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
