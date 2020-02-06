@@ -124,19 +124,20 @@ class ToDoList:
 		removes images that are not yet available for download
 	"""
 
-	# mysql credentials
-	try:
-		mysql_user = os.environ['glam_mysql_user']
-		mysql_pass = os.environ['glam_mysql_pass']
-		mysql_db = 'modis_dev'
-	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+	
 
 	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
 	metadata = db.MetaData()
 	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
 	def __init__(self):
+		# mysql credentials
+		try:
+			mysql_user = os.environ['glam_mysql_user']
+			mysql_pass = os.environ['glam_mysql_pass']
+			mysql_db = 'modis_dev'
+		except KeyError:
+			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
 		self.refresh()
 
 	def __repr__(self):
