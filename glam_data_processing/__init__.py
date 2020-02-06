@@ -1889,7 +1889,8 @@ class AncillaryImage(Image):
 	setStatus(stage,status) -> None
 		Writes new status of image to database
 	isProcessed() -> bool
-		Returns whether the file has been uploaded to the database and S3 bucket, according to the product_status table
+		Returns whether the file has b
+		een uploaded to the database and S3 bucket, according to the product_status table
 	statsGenerated() -> bool
 		Returns whether statistics have been generated and uploaded to the database, according to the product_status table
 	ingest() -> None
@@ -1899,7 +1900,10 @@ class AncillaryImage(Image):
 	uploadStats() -> None
 		Calculates and uploads all statistics for the given data file to the database 
 	"""
+	def __repr__(self):
+		return f"<Instance of AncillaryImage, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
 	pass
+
 
 class ModisImage(Image):
 	"""
@@ -1944,10 +1948,18 @@ class ModisImage(Image):
 	-------
 	getStatus() -> dict
 		Returns dictionary of product status: {'downloade':bool,'processed':bool,'statGen':bool}
+	setStatus(stage,status) -> None
+		Writes new status of image to database
+	isProcessed() -> bool
+		Returns whether the file has been uploaded to the database and S3 bucket, according to the product_status table
+	statsGenerated() -> bool
+		Returns whether statistics have been generated and uploaded to the database, according to the product_status table
+	ingest() -> None
+		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
 	getStatsTables() -> dict
 		Returns a nested dictionary, organized by crop and admin; result[crop][admin] -> StatsTable object with attributes name:str and exists:bool
 	uploadStats() -> None
-		Calculates and uploads all statistics for the given data file to the database
+		Calculates and uploads all statistics for the given data file to the database 
 	"""
 
 	# mysql credentials
@@ -2269,6 +2281,7 @@ class ModisImage(Image):
 			x = connection.execute(updateSql)
 			if x.rowcount == 0:
 				connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
+
 
 ## define functions
 
