@@ -33,6 +33,8 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
+admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
+crops = ["maize","rice","soybean","springwheat","winterwheat"]
 
 ## decorators
 
@@ -1311,8 +1313,6 @@ class Image:
 	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
 	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
-	admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-	crops = ["maize","rice","soybean","springwheat","winterwheat"]
 
 	def __init__(self,file_path:str):
 		self.type = "image"
@@ -1331,6 +1331,8 @@ class Image:
 			self.doy = datetime.strptime(self.date,"%Y-%m-%d").strftime("%j")
 		except:
 			raise BadInputError("Incorrect date format in file name. Format is: '{product}.{yyyy-mm-dd}.tif'")
+		self.admins = admins
+		self.crops = crops
 		self.cropMaskFiles = {crop:os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product}.{crop}.tif") for crop in self.crops}
 		self.adminFiles = {level:os.path.join(os.path.dirname(os.path.abspath(__file__)),f"statscode","Regions",f"{self.product}.{level}.tif") for level in self.admins}
 
@@ -1981,8 +1983,6 @@ class ModisImage(Image):
 	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
 	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
-	admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-	crops = ["maize","rice","soybean","springwheat","winterwheat"]
 
 	# override init inheritance; MODIS dates are different
 	def __init__(self,file_path:str):
@@ -1995,6 +1995,8 @@ class ModisImage(Image):
 		self.year = os.path.basename(file_path).split(".")[1]
 		self.doy = os.path.basename(file_path).split(".")[2]
 		self.date = datetime.strptime(f"{self.year}-{self.doy}","%Y-%j").strftime("%Y-%m-%d")
+		self.admins = admins
+		self.crops = crops
 		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops}
 		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"{self.product[:2]}*.{level}.tif"))[0] for level in self.admins}
 
@@ -2422,7 +2424,7 @@ def updateGlamData():
 			# iterate over file paths
 			for p in paths:
 				#log.debug(p)
-				image = Image(p)
+				image = getImageType(p)(p) # create correct of ModisImage or AncillaryImage object
 				if image.product == 'chirps':
 					log.debug("-purging corresponding chirps-prelim product")
 					purge('chirps-prelim',image.date,'glam!23')
@@ -2434,7 +2436,7 @@ def updateGlamData():
 				image.uploadStats()
 				image.setStatus('statGen',True)
 				log.debug("--stats generated")
-				#os.remove(p) # once we move to aws, we'll download 1 file at a time and remove them when no longer needed
+				#os.remove(p) # once we fully move to aws, we'll download 1 file at a time and remove them when no longer needed
 				#log.debug("--file removed")
 		except UnavailableError:
 			log.info("(No file available)")
