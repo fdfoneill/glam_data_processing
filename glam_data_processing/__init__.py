@@ -124,20 +124,23 @@ class ToDoList:
 		removes images that are not yet available for download
 	"""
 
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+		
+	except KeyError:
+		raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
+
 	
 
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
-
 	def __init__(self):
-		# mysql credentials
-		try:
-			mysql_user = os.environ['glam_mysql_user']
-			mysql_pass = os.environ['glam_mysql_pass']
-			mysql_db = 'modis_dev'
-		except KeyError:
-			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+		
 		self.refresh()
 
 	def __repr__(self):
@@ -1313,15 +1316,16 @@ class Image:
 		mysql_user = os.environ['glam_mysql_user']
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
+
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+		products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+		stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
-	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
-	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
-	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+		log.warning("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 
 
 	def __init__(self,file_path:str):
@@ -1443,7 +1447,7 @@ class Image:
 			mysql_pass = os.environ['glam_mysql_pass']
 			mysql_db = 'modis_dev'
 		except KeyError:
-			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
@@ -1979,19 +1983,19 @@ class ModisImage(Image):
 	"""
 
 	# mysql credentials
-	try:
-		mysql_user = os.environ['glam_mysql_user']
-		mysql_pass = os.environ['glam_mysql_pass']
-		mysql_db = 'modis_dev'
-	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
-	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
-	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
-	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+	#try:
+		#mysql_user = os.environ['glam_mysql_user']
+		#mysql_pass = os.environ['glam_mysql_pass']
+		#mysql_db = 'modis_dev'
+	#except KeyError:
+		#log.warning("Database credentials not found. ModisImage objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+	#engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+	#metadata = db.MetaData()
+	#masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+	#regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+	#products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+	#stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+	#product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
 
 	# override init inheritance; MODIS dates are different
@@ -2029,7 +2033,7 @@ class ModisImage(Image):
 			mysql_pass = os.environ['glam_mysql_pass']
 			mysql_db = 'modis_dev'
 		except KeyError:
-			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 		mysql_db = 'modis_dev'
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
@@ -2348,7 +2352,7 @@ def purge(product, date, auth_key):
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+		raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 	else:
 		# setup
