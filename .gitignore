@@ -1,6 +1,7 @@
 # .gitignore
 __pycache__
 python-virtual-environments
+venv
 statscode
 keys.txt
 tests/temp/*
