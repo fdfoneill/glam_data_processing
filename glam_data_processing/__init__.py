@@ -133,9 +133,9 @@ class ToDoList:
 		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
 		metadata = db.MetaData()
 		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
-		
+
 	except KeyError:
-		raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
+		log.warning("Database credentials not found. ToDoList objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 
 	
 
