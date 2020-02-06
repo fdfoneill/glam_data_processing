@@ -41,7 +41,7 @@ crops = ["maize","rice","soybean","springwheat","winterwheat"]
 def log_io(func):
 	def wrapped(*args,**kwargs):
 		result = func(*args,**kwargs)
-		log.debug(f"{func.__name__} called with arguments " + " ".join((str(a) for a in args)) + f" with result {result}")
+		log.debug(f"{func.__name__} called with arguments " + " ".join((str(a) for a in args)) + f" with result {str(result)}")
 		return result
 	return wrapped
 		
