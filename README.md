@@ -60,6 +60,8 @@ downloader = glam.Downloader()
 for t in toDo: # yields tuples of the form ("PRODUCT","DATE")
 	files = downloader.pullFromSource(*t, "C:/temp") # returns tuple of filepaths
 	for f in files:
+		# Use either ModisImage or AncillaryImage to ingest the data
+		# and generate regional statistics
 		img = glam.getImageType(f)(f) # create correct Image object type
 		img.ingest() # ingest image to S3 bucket and database
 		img.uploadStats() # upload image statistics
