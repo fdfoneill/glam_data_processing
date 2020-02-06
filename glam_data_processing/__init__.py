@@ -331,6 +331,7 @@ class ToDoList:
 
 		def getAllMyd13q1() -> list:
 			"""Return list of string dates of all missing MYD13Q1 files"""
+			return []
 			
 			def getChronoMyd13q1() -> list:
 				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
@@ -1116,7 +1117,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return (octvi.globalNdvi(product,date,outPath))
+			return tuple([octvi.globalNdvi(product,date,outPath)])
 
 		def downloadMyd09q1(date:str,out_dir:str) -> tuple:
 			"""
@@ -1128,7 +1129,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return (octvi.globalNdvi(product,date,outPath))
+			return tuple([octvi.globalNdvi(product,date,outPath)])
 
 		def downloadMod13q1(date:str,out_dir:str) -> tuple:
 			"""
@@ -1140,7 +1141,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return (octvi.globalNdvi(product,date,outPath))
+			return tuple([octvi.globalNdvi(product,date,outPath)])
 
 		def downloadMyd13q1 (date:str,out_dir:str) -> tuple:
 			"""
@@ -1152,7 +1153,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return (octvi.globalNdvi(product,date,outPath))
+			return tuple([octvi.globalNdvi(product,date,outPath)])
 
 		actions = {
 			"swi":downloadSwi,
@@ -1202,8 +1203,10 @@ class Downloader:
 				results.append(outFile)
 				try:
 					s3_client.download_file(s3_bucket,s3_key,outFile)
+				except ClientError:
+					log.error("File not available on S3")
 				except Exception:
-					log.error("File download from S3 failed")
+					log.exception("File download from S3 failed")
 					return ()
 		elif product == 'merra-2':
 			s3_key = f"rasters/{product}.{date}.{collection}.tif"
@@ -1211,8 +1214,10 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 		
 		elif product in ["swi","chirps","chirps-prelim"]:
@@ -1221,8 +1226,10 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 		else:
 			year = datetime.strptime(date,"%Y-%m-%d").strftime("%Y")
@@ -1232,8 +1239,10 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 
 		## return tuple of file paths
@@ -1989,7 +1998,7 @@ class ModisImage(Image):
 		self.type = "image"
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
-		if self.product not in ["MOD09Q1","MOD13Q1","MYD09Q1","MYD13Q1","VNP09H1","MOD09Q1N","MOD13Q4N"]:
+		if self.product not in octvi.supported_products:
 			raise BadInputError(f"Product type '{self.product}' not recognized")
 		self.collection = '006'
 		self.year = os.path.basename(file_path).split(".")[1]
@@ -2425,17 +2434,19 @@ def updateGlamData():
 			for p in paths:
 				#log.debug(p)
 				image = getImageType(p)(p) # create correct of ModisImage or AncillaryImage object
-				if image.product == 'chirps':
-					log.debug("-purging corresponding chirps-prelim product")
-					purge('chirps-prelim',image.date,'glam!23')
+				#if image.product == 'chirps':
+				#	log.debug("-purging corresponding chirps-prelim product")
+				#	purge('chirps-prelim',image.date,None)
 				image.setStatus('downloaded',True)
 				log.debug(f"-collection: {image.collection}")
-				image.ingest()
-				image.setStatus('processed',True)
-				log.debug("--ingested")
-				image.uploadStats()
-				image.setStatus('statGen',True)
-				log.debug("--stats generated")
+				ingest = image.ingest()
+				if ingest:
+					image.setStatus('processed',True)
+					log.debug("--ingested")
+				stats = image.uploadStats()
+				if stats:
+					image.setStatus('statGen',True)
+					log.debug("--stats generated")
 				#os.remove(p) # once we fully move to aws, we'll download 1 file at a time and remove them when no longer needed
 				#log.debug("--file removed")
 		except UnavailableError:
