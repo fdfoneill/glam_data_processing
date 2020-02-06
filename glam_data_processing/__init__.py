@@ -2289,6 +2289,20 @@ class ModisImage(Image):
 
 ## define functions
 
+def getImageType(in_path:str) -> Image:
+	"""
+	Given path to downloaded file, returns
+	either ModisImage or AncillaryImage,
+	depending on the file type
+	"""
+	p = os.path.basename(in_path).split(".")[0]
+	if p in ancillary_products:
+		return AncillaryImage
+	elif p in octvi.supported_products:
+		return ModisImage
+	else:
+		raise BadInputError(f"Image type '{p}' not recognized.")
+
 # erases all records of a file from the s3 bucket and all databases -- USE ONLY AS A LAST RESORT
 def purge(product, date, auth_key):
 	"""
