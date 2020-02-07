@@ -641,7 +641,7 @@ class Downloader:
 				with open(clipFile,'wb') as a:
 					with open(in_file,'rb') as b:
 						shutil.copyfileobj(b,a)
-				clip_args = ["gdal_translate", "-projwin",str(west),str(north),str(east),str(south),clipFile,in_file]
+				clip_args = ["gdal_translate", "-q", "-projwin",str(west),str(north),str(east),str(south),clipFile,in_file]
 				subprocess.call(clip_args)
 				os.remove(clipFile)
 			return 0
@@ -659,7 +659,7 @@ class Downloader:
 					shutil.copyfileobj(b,a)
 
 			## add tiling to file
-			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW"]
+			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW"]
 			subprocess.call(cloudOpArgs)
 
 			## remove intermediate
@@ -782,9 +782,9 @@ class Downloader:
 				minOut = os.path.join(out_dir,f"M2_MIN.{urlDate}.TEMP.tif")
 				maxOut = os.path.join(out_dir,f"M2_MAX.{urlDate}.TEMP.tif")
 				meanOut = os.path.join(out_dir,f"M2_MEAN.{urlDate}.TEMP.tif")
-				subprocess.call(["gdal_translate",sdMin,minOut]) # calling the command line to produce the tiff
-				subprocess.call(["gdal_translate",sdMax,maxOut]) # calling the command line to produce the tiff
-				subprocess.call(["gdal_translate",sdMean,meanOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMin,minOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMax,maxOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMean,meanOut]) # calling the command line to produce the tiff
 
 				## delete netCDF file
 				os.remove(outNc4)
@@ -873,7 +873,7 @@ class Downloader:
 				os.remove(file_zipped) # delete zipped version
 
 				## apply nodata mask to file
-				chirps_noData_args = ["gdal_translate","-a_nodata", "-9999",tf,file_unzipped] # apply NoData mask
+				chirps_noData_args = ["gdal_translate","-q","-a_nodata", "-9999",tf,file_unzipped] # apply NoData mask
 				subprocess.call(chirps_noData_args)
 				os.remove(tf) # delete unmasked file
 
@@ -936,7 +936,7 @@ class Downloader:
 					return ()
 
 				## apply nodata mask to file
-				chirps_noData_args = ["gdal_translate","-a_nodata", "-9999",tf,file_out] # apply NoData mask
+				chirps_noData_args = ["gdal_translate","-q","-a_nodata", "-9999",tf,file_out] # apply NoData mask
 				subprocess.call(chirps_noData_args)
 				os.remove(tf) # delete unmasked file
 
@@ -1096,7 +1096,7 @@ class Downloader:
 					subdataset=sd[0]
 			del dataset
 			# translate subdataset to its own tiff and delete full netCDF
-			swiArgs = ["gdal_translate",subdataset,out] # arguments for gdal to transform subdataset into independent Tiff
+			swiArgs = ["gdal_translate","-q",subdataset,out] # arguments for gdal to transform subdataset into independent Tiff
 			subprocess.call(swiArgs) # calling the command line to produce the tiff
 			os.remove(file_nc)
 
@@ -2025,6 +2025,7 @@ class ModisImage(Image):
 		self.date = datetime.strptime(f"{self.year}-{self.doy}","%Y-%j").strftime("%Y-%m-%d")
 		self.admins = admins
 		self.crops = crops
+		#print(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))
 		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops}
 		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"{self.product[:2]}*.{level}.tif"))[0] for level in self.admins}
 
