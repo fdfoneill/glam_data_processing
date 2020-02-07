@@ -1209,6 +1209,7 @@ class Downloader:
 					s3_client.download_file(s3_bucket,s3_key,outFile)
 				except ClientError:
 					log.error("File not available on S3")
+					return ()
 				except Exception:
 					log.exception("File download from S3 failed")
 					return ()
@@ -1220,6 +1221,7 @@ class Downloader:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
 			except ClientError:
 				log.error("File not available on S3")
+				return ()
 			except Exception:
 				log.exception("File download from S3 failed")
 				return ()
@@ -1232,6 +1234,7 @@ class Downloader:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
 			except ClientError:
 				log.error("File not available on S3")
+				return ()
 			except Exception:
 				log.exception("File download from S3 failed")
 				return ()
@@ -1245,6 +1248,7 @@ class Downloader:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
 			except ClientError:
 				log.error("File not available on S3")
+				return ()
 			except Exception:
 				log.exception("File download from S3 failed")
 				return ()
@@ -1334,6 +1338,8 @@ class Image:
 		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
+		if not os.path.exists(file_path):
+			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
 		if self.product not in ["merra-2","chirps","chirps-prelim","swi"]:
@@ -2007,6 +2013,8 @@ class ModisImage(Image):
 		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
+		if not os.path.exists(file_path):
+			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
 		if self.product not in octvi.supported_products:
