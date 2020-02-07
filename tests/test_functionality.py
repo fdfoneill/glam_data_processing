@@ -25,7 +25,7 @@ class TestFunctionality(TestCase):
 			downloader = glam.Downloader()
 			
 			for t in knownValids:
-				print(t[0])
+				#print(t[0])
 				fileTuples.append(downloader.pullFromSource(*t,os.path.join(os.path.dirname(__file__),"temp")))
 			for t in fileTuples:
 				for f in t:
