@@ -100,7 +100,7 @@ try:
 	readCredentialsFile()
 	log.info("Found credentials file")
 except NoCredentialsError:
-	log.Warning("No credentials file found. Reading directly from environment variables instead.")
+	log.warning("No credentials file found. Reading directly from environment variables instead.")
 
 ## other class definitions
 
