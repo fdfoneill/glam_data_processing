@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
 ## import modules
-import sys, glob, gdal, boto3, hashlib, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
+import sys, glob, gdal, boto3, hashlib, json, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from gdalnumeric import *
@@ -77,6 +77,30 @@ class NoCredentialsError(Exception):
 		self.data=data
 	def __str__(self):
 		return repr(self.data)
+
+## getting credentials
+
+def readCredentialsFile():
+	#log.info(__file__)
+	credDir = os.path.dirname(os.path.dirname(__file__))
+	credFile = os.path.join(credDir,"keys.json")
+	#log.info(credFile)
+	try:
+		with open(credFile,'r') as f:
+			keys = json.loads(f.read())
+	except FileNotFoundError:
+		raise NoCredentialsError("Credentials file ('keys.json') not found.")
+	for k in ["merrausername","merrapassword","swiusername","swipassword","glam_mysql_user","glam_mysql_pass"]:
+		try:
+			os.environ[k] = keys[k]
+		except KeyError:
+			continue
+
+try:
+	readCredentialsFile()
+	log.info("Found credentials file")
+except NoCredentialsError:
+	log.Warning("No credentials file found. Reading directly from environment variables instead.")
 
 ## other class definitions
 
@@ -287,7 +311,10 @@ class ToDoList:
 				today = datetime.date(datetime.today())
 				cm = []
 				while latest < today:
+					oldYear = latest.strftime("%Y")
 					latest = latest + timedelta(days = 8)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
 					log.debug(f"Found missing file in valid date range: MOD09Q1 for {latest.strftime('%Y-%m-%d')}")
 					cm.append(latest.strftime("%Y-%m-%d"))
 					updateDatabase('MOD09Q1',latest.strftime("%Y-%m-%d"))
@@ -306,7 +333,10 @@ class ToDoList:
 				today = datetime.date(datetime.today())
 				cm = []
 				while latest < today:
+					oldYear = latest.strftime("%Y")
 					latest = latest + timedelta(days = 8)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
 					log.debug(f"Found missing file in valid date range: MYD09Q1 for {latest.strftime('%Y-%m-%d')}")
 					cm.append(latest.strftime("%Y-%m-%d"))
 					updateDatabase('MYD09Q1',latest.strftime("%Y-%m-%d"))
@@ -325,7 +355,10 @@ class ToDoList:
 				today = datetime.date(datetime.today())
 				cm = []
 				while latest < today:
+					oldYear = latest.strftime("%Y")
 					latest = latest + timedelta(days = 16)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
 					log.debug(f"Found missing file in valid date range: MOD13Q1 for {latest.strftime('%Y-%m-%d')}")
 					cm.append(latest.strftime("%Y-%m-%d"))
 					updateDatabase('MOD13Q1',latest.strftime("%Y-%m-%d"))
@@ -345,7 +378,10 @@ class ToDoList:
 				today = datetime.date(datetime.today())
 				cm = []
 				while latest < today:
+					oldYear = latest.strftime("%Y")
 					latest = latest + timedelta(days = 16)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=9)
 					log.debug(f"Found missing file in valid date range: MYD13Q1 for {latest.strftime('%Y-%m-%d')}")
 					cm.append(latest.strftime("%Y-%m-%d"))
 					updateDatabase('MYD13Q1',latest.strftime("%Y-%m-%d"))
@@ -473,16 +509,26 @@ class Downloader:
 
 			dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
 			year = dateObj.strftime("%Y")
-			month = dateObj.strftime("%M")
-			day = dateObj.strftime("%d")
+			month = dateObj.strftime("%m".zfill(2))
+			day = dateObj.strftime("%d".zfill(2))
 			url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
 			#print(url)
 
-			request = requests.get(url,auth=(self.swiUsername,self.swiPassword))
-			if request.status_code == 200:
-				return True
-			else:
-				return False
+			with requests.Session() as session:
+				session.auth = (self.swiUsername, self.swiPassword)
+				request = session.request('get',url)
+				if request.status_code == 200:
+					if request.headers['Content-Type'] == 'application/octet-stream':
+						return True
+				else:
+					return False
+
+			#r1 = requests.get(url)
+			#request = requests.get(url,auth=(self.swiUsername,self.swiPassword))
+			#if request.status_code == 200:
+			#	return True
+			#else:
+			#	return False
 
 			#try:
 				### log into copernicus
@@ -969,8 +1015,8 @@ class Downloader:
 			out = os.path.join(out_dir,f"swi.{date}.tif")
 			dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
 			year = dateObj.strftime("%Y")
-			month = dateObj.strftime("%m")
-			day = dateObj.strftime("%d")
+			month = dateObj.strftime("%m".zfill(2))
+			day = dateObj.strftime("%d".zfill(2))
 			
 			## download file
 			#url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_201911251200_GLOBE_ASCAT_V3.1.1.nc"
@@ -2437,13 +2483,14 @@ def updateGlamData():
 	## create necessary objects
 	downloader = Downloader() # downloader object
 	missingFiles = ToDoList() # collect missing dates for each file type
+	missingFiles.filterUnavailable() # pare down to only available files
 	## iterate over ToDoList object
 	for f in missingFiles:
 		#product = f[0]
 		#date = f[1]
 		log.info("{0} {1}".format(*f))
 		try:
-			if not downloader.isAvailable(*f):
+			if not downloader.isAvailable(*f): # this should never happen
 				raise UnavailableError("No file detected")
 			paths = downloader.pullFromSource(*f,f"\\\\webtopus.iluci.org\\c$\\data\\Dan\\{f[0]}_archive")
 			# check that at least one file was downloaded
@@ -2469,8 +2516,12 @@ def updateGlamData():
 					log.debug("--stats generated")
 				#os.remove(p) # once we fully move to aws, we'll download 1 file at a time and remove them when no longer needed
 				#log.debug("--file removed")
+		# again, this should never happen
 		except UnavailableError:
 			log.info("(No file available)")
+		except:
+			log.error("FAILED")
+			continue
 
 # main function
 def main():
