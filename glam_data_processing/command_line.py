@@ -133,3 +133,8 @@ def updateData():
 				log.debug("--file removed")
 		except UnavailableError:
 			log.info("(No file available)")
+
+def getInfo():
+	## parse arguments
+	parser = argparse.ArgumentParser(description="Update GLAM system imagery data")
+	pass
