@@ -1,4 +1,4 @@
-import os
+import argparse, octvi, os
 import glam_data_processing as glam
 
 def getYesNo(message:str) -> bool:
@@ -56,11 +56,50 @@ def setCredentials():
 	sys.exit()
 
 def updateData():
+	## parse arguments
+	parser = argparse.ArgumentParser(description="Update GLAM system imagery data")
+	parser.add_argument("-a",
+		"--ancillary",
+		action='store_true',
+		help="Only do ancillary data, not NDVI")
+	parser.add_argument("-n",
+		"--ndvi",
+		action='store_true',
+		help="Only do NDVI data, not ancillary")
+	parser.add_argument("-i",
+		"--ingest",
+		action='store_true',
+		help="Ingest only, no stats generation")
+	parser.add_argument('-s',
+		"--stats",
+		action='store_true',
+		help="Stats generation only, no ingest")
+	args = parser.parse_args()
+	## confirm exclusivity
+	try:
+		if args.ancillary:
+			assert not args.ndvi
+		elif args.ndvi:
+			assert not args.ancillary
+	except AssertionError:
+		raise glam.BadInputError("--ancillary and --ndvi are mutually exclusive")
+	try:
+		if args.ingest:
+			assert not args.stats
+		elif args.stats:
+			assert not args.ingest
+	except AssertionError:
+		raise glam.BadInputError("--ingest and --stats are mutually exclusive")
 	## get toDoList
 	missing = glam.ToDoList()
 	downloader = glam.Downloader()
 	tempDir = os.path.dirname(__file__)
 	for f in missing:
+		product = f[0]
+		if product in octvi.supported_products and args.ndvi:
+			continue
+		if product in glam.ancillary_products and args.ancillary:
+			continue
 		log.info("{0} {1}".format(*f))
 		try:
 			if not downloader.isAvailable(*f):
@@ -82,12 +121,14 @@ def updateData():
 						log.warning("glam_purge_key not set. Chirps preliminary product not purged.")
 				image.setStatus('downloaded',True)
 				log.debug(f"-collection: {image.collection}")
-				image.ingest()
-				image.setStatus('processed',True)
-				log.debug("--ingested")
-				image.uploadStats()
-				image.setStatus('statGen',True)
-				log.debug("--stats generated")
+				if not args.stats:
+					image.ingest()
+					image.setStatus('processed',True)
+					log.debug("--ingested")
+				if not args.ingest:
+					image.uploadStats()
+					image.setStatus('statGen',True)
+					log.debug("--stats generated")
 				os.remove(p)
 				log.debug("--file removed")
 		except UnavailableError:
