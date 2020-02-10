@@ -4,4 +4,4 @@ python-virtual-environments
 venv
 statscode
 temp/*
-keys.json
+glam_keys.json
