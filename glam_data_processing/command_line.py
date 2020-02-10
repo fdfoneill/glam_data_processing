@@ -1,4 +1,4 @@
-import argparse, octvi, os
+import argparse, json, octvi, os, sys
 import glam_data_processing as glam
 
 def getYesNo(message:str) -> bool:
@@ -14,7 +14,7 @@ def getYesNo(message:str) -> bool:
 def setCredentials():
 	## get existing credentials
 	credDir = os.path.dirname(os.path.dirname(__file__))
-	credFile = os.path.join(credDir,"keys.json")
+	credFile = os.path.join(credDir,"glam_keys.json")
 	try:
 		with open(credFile,'r') as rf:
 			keys = json.loads(rf.read())
@@ -22,7 +22,7 @@ def setCredentials():
 		keys = {}
 	## data archive
 	cont = getYesNo("Set credentials for the MERRA-2 archive and Copernicus online?")
-	if cont
+	if cont:
 		# get input
 		merraUsername = input("Merra-2 archive username:\n")
 		merraPassword = input("Merra-2 archive password:\n")
@@ -33,7 +33,7 @@ def setCredentials():
 		keys['merrapassword'] = merraPassword
 		keys['swiusername'] = swiUsername
 		keys['swipassword'] = swiPassword
-	else
+	else:
 		pass
 	## database
 	cont = getYesNo("Set credentials for database?")
@@ -46,7 +46,7 @@ def setCredentials():
 		keys['glam_mysql_pass'] = mysql_pass
 	else:
 		pass
-	## save output to keys.json
+	## save output to glam_keys.json
 	cont = getYesNo("Save credentials as entered?")
 	if cont:
 		with open(credFile,'w') as wf:
