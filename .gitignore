@@ -4,4 +4,4 @@ python-virtual-environments
 venv
 statscode
 temp/*
-keys.txt
+keys.json

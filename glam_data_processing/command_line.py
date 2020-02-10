@@ -1,39 +1,59 @@
 import os
 import glam_data_processing as glam
 
-def setCredentials():
-	## data archive
-	cont = input("Set credentials for the MERRA-2 archive and Copernicus online? [Y/N]\n")
+def getYesNo(message:str) -> bool:
+	cont = input(message+"[Y/N]\n")
 	if cont.lower() in ("y","yes"):
+		return True
+	elif cont.lower() in ("n","no"):
+		return False
+	else:
+		print("Error: Input not recognized. Please select one of: [Y/N]")
+		return getYesNo(message)	
+
+def setCredentials():
+	## get existing credentials
+	credDir = os.path.dirname(os.path.dirname(__file__))
+	credFile = os.path.join(credDir,"keys.json")
+	try:
+		with open(credFile,'r') as rf:
+			keys = json.loads(rf.read())
+	except FileNotFoundError:
+		keys = {}
+	## data archive
+	cont = getYesNo("Set credentials for the MERRA-2 archive and Copernicus online?")
+	if cont
 		# get input
 		merraUsername = input("Merra-2 archive username:\n")
 		merraPassword = input("Merra-2 archive password:\n")
 		swiUsername = input("Copernicus online username:\n")
 		swiPassword = input("Copernicus online password:\n")
 		# use input to set environent variables
-		os.environ['merrausername'] = merraUsername
-		os.environ['merrapassword'] = merraPassword
-		os.environ['swiusername'] = swiUsername
-		os.environ['swipassword'] = swiPassword
-	elif cont.lower() in ("n","no"):
+		keys['merrausername'] = merraUsername
+		keys['merrapassword'] = merraPassword
+		keys['swiusername'] = swiUsername
+		keys['swipassword'] = swiPassword
+	else
 		pass
-	else:
-		print("Error: Input not recognized. Please select one of: [Y/N]")
-		setCredentials()
 	## database
-	cont = input("Set credentials for database? [Y/N]\n")
-	if cont.lower() in ("y","yes"):
+	cont = getYesNo("Set credentials for database?")
+	if cont:
 		# get input
 		mysql_user = input("MySQL username:\n")
 		mysql_pass = input("MySQL password:\n")
 		# use input to set environent variables
-		os.environ['glam_mysql_user'] = mysql_user
-		os.environ['glam_mysql_pass'] = mysql_pass
-	elif cont.lower() in ("n","no"):
-		pass
+		keys['glam_mysql_user'] = mysql_user
+		keys['glam_mysql_pass'] = mysql_pass
 	else:
-		print("Error: Input not recognized. Please select one of: [Y/N]")
-		setCredentials()
+		pass
+	## save output to keys.json
+	cont = getYesNo("Save credentials as entered?")
+	if cont:
+		with open(credFile,'w') as wf:
+			wf.write(json.dumps(keys))
+	else:
+		print("Keys not saved.")
+	sys.exit()
 
 def updateData():
 	## get toDoList
