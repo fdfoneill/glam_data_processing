@@ -7,6 +7,8 @@
 # Description: 
 ##############################################################################
 
+__version__ = "1.0.0"
+
 ## set up logging
 import logging, os
 from datetime import datetime, timedelta
@@ -44,7 +46,6 @@ def log_io(func):
 		log.debug(f"{func.__name__} called with arguments " + " ".join((str(a) for a in args)) + f" with result {str(result)}")
 		return result
 	return wrapped
-		
 
 ## custom error classes
 
@@ -83,22 +84,24 @@ class NoCredentialsError(Exception):
 def readCredentialsFile():
 	#log.info(__file__)
 	credDir = os.path.dirname(os.path.dirname(__file__))
-	credFile = os.path.join(credDir,"keys.json")
+	credFile = os.path.join(credDir,"glam_keys.json")
 	#log.info(credFile)
 	try:
 		with open(credFile,'r') as f:
 			keys = json.loads(f.read())
+		log.debug(f"Found credentials file: {credFile}")
 	except FileNotFoundError:
-		raise NoCredentialsError("Credentials file ('keys.json') not found.")
+		raise NoCredentialsError("Credentials file ('glam_keys.json') not found.")
 	for k in ["merrausername","merrapassword","swiusername","swipassword","glam_mysql_user","glam_mysql_pass"]:
 		try:
+			log.debug(f"Adding variable to environment: {k}")
 			os.environ[k] = keys[k]
 		except KeyError:
+			log.debug(f"Variable not found in credentials file")
 			continue
 
 try:
 	readCredentialsFile()
-	log.info("Found credentials file")
 except NoCredentialsError:
 	log.warning("No credentials file found. Reading directly from environment variables instead.")
 
