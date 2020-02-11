@@ -152,7 +152,7 @@ def updateData():
 			except glam.UnavailableError:
 				log.info("(No file available)")
 			except:
-				log.error("FAILED")
+				log.error("(FAILED)")
 	finally:
 		for f in glob.glob(os.path.join(tempDir,"*")):
 			os.remove(f)
