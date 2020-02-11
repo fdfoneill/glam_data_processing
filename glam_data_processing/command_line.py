@@ -1,3 +1,8 @@
+## set up logging
+import logging, os
+logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
+log = logging.getLogger("glam_command_line")
+
 import argparse, json, octvi, os, sys
 import glam_data_processing as glam
 
@@ -74,6 +79,10 @@ def updateData():
 		"--stats",
 		action='store_true',
 		help="Stats generation only, no ingest")
+	parser.add_argument('-p',
+		'--print_missing',
+		action='store_true',
+		help="Print list of missing imagery; do not download, ingest, or generate statistics")
 	args = parser.parse_args()
 	## confirm exclusivity
 	try:
@@ -92,13 +101,17 @@ def updateData():
 		raise glam.BadInputError("--ingest and --stats are mutually exclusive")
 	## get toDoList
 	missing = glam.ToDoList()
+	missing.filterUnavailable()
 	downloader = glam.Downloader()
 	tempDir = os.path.dirname(__file__)
 	for f in missing:
 		product = f[0]
-		if product in octvi.supported_products and args.ndvi:
+		if product in octvi.supported_products and args.ancillary:
 			continue
-		if product in glam.ancillary_products and args.ancillary:
+		if product in glam.ancillary_products and args.ndvi:
+			continue
+		if args.print_missing:
+			print("{0} {1}".format(*f))
 			continue
 		log.info("{0} {1}".format(*f))
 		try:
