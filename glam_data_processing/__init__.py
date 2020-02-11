@@ -475,10 +475,10 @@ class ToDoList:
 		self.chirps_prelim = [f for f in self.chirps_prelim if filterMachine.isAvailable('chirps-prelim',f)]
 		self.merra = [f for f in self.merra if filterMachine.isAvailable('merra-2',f)]
 		self.swi = [f for f in self.swi if filterMachine.isAvailable('swi',f)]
-		self.mod09q1 = [f for f in self.mod09q1 if len(octvi.url.getDates("MOD09Q1",f)) > 0]
-		self.myd09q1 = [f for f in self.myd09q1 if len(octvi.url.getDates("MYD09Q1",f)) > 0]
-		self.mod13q1 = [f for f in self.mod13q1 if len(octvi.url.getDates("MOD13Q1",f)) > 0]
-		self.myd13q1 = [f for f in self.myd13q1 if len(octvi.url.getDates("MYD13Q1",f)) > 0]
+		self.mod09q1 = [f for f in self.mod09q1 if filterMachine.isAvailable("MOD09Q1",f)]
+		self.myd09q1 = [f for f in self.myd09q1 if filterMachine.isAvailable("MYD09Q1",f)]
+		self.mod13q1 = [f for f in self.mod13q1 if filterMachine.isAvailable("MOD13Q1",f)]
+		self.myd13q1 = [f for f in self.myd13q1 if filterMachine.isAvailable("MYD13Q1",f)]
 		self.filtered = True
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
@@ -648,9 +648,42 @@ class Downloader:
 				#log.error("Connection reset error; Copernicus kicked you off")
 				#return False
 
+		def checkMod09q1(date:str) -> bool:
+			if len(octvi.url.getDates("MOD09Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMyd09q1(date:str) -> bool:
+			if len(octvi.url.getDates("MYD09Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMod13q1(date:str) -> bool:
+			if len(octvi.url.getDates("MOD13Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMyd13q1(date:str) -> bool:
+			if len(octvi.url.getDates("MYD13Q1",date)) > 0:
+				return True
+			else:
+				return False
+
 		if not self.credentials:
 			raise NoCredentialsError("Data archive credentials not set. Use 'glamconfigure' on command line to set credentials.")
-		actions = {'merra-2':checkMerra,'chirps':checkChirps,'chirps-prelim':checkChirpsPrelim,'swi':checkSwi}
+		actions = {
+			'merra-2':checkMerra,
+			'chirps':checkChirps,
+			'chirps-prelim':checkChirpsPrelim,
+			'swi':checkSwi,
+			'MOD09Q1':checkMod09q1,
+			'MYD09Q1':checkMyd09q1,
+			'MOD13Q1':checkMod13q1,
+			'MYD13Q1':checkMyd13q1
+			}
 		return actions[product](date)
 
 	def pullFromSource(self,product:str,date:str,out_dir:str,) -> tuple:
