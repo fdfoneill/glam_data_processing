@@ -44,7 +44,8 @@ setup(name='glam_data_processing',
 
 			'console_scripts': [
 				'glamconfigure=glam_data_processing.command_line:setCredentials',
-				'glamupdatedata=glam_data_processing.command_line:updateData'
+				'glamupdatedata=glam_data_processing.command_line:updateData',
+				'glaminfo=glam_data_processing.command_line:getInfo'
 				]
 			}
 		)

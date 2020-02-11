@@ -136,5 +136,14 @@ def updateData():
 
 def getInfo():
 	## parse arguments
-	parser = argparse.ArgumentParser(description="Update GLAM system imagery data")
-	pass
+	parser = argparse.ArgumentParser(description="Get information on glam_data_processing usage and current installation")
+	parser.add_argument("-v",
+		"--version",
+		action="store_true",
+		help="Only print version number")
+	args = parser.parse_args()
+	if not args.version:
+		print(glam.__doc__)
+	else:
+		print("glam_data_processing")
+	print(f"Version = {glam.__version__}")

@@ -4,8 +4,75 @@
 # Author: F. Dan O'Neill
 # Date: 10/04/2019
 # Script title: glam_data_processing.py
-# Description: 
 ##############################################################################
+
+"""glam_data_processing
+
+This module facilitates handling of the various types of imagery date used
+in the NASA Harvest GLAM system. These data types include NDVI imagery from
+MODIS, CHIRPS rainfall, Copernicus Soil-Water Index, and MERRA-2 temperature.
+
+Imagery can be pulled from source archives or the GLAM AWS S3 bucket using 
+the Downloader class. Downloaded files can then be used to create Image objects,
+which allow for ingestion to the system and the calculation of regional
+statistics.
+
+***
+
+Classes
+-------
+BadInputError
+NoCredentialsError
+UploadFailureError
+UnavailableError
+RecordNotFoundError
+ToDoList
+	Collects all missing files that are potentially available for each data
+	stream. Can be pared down to only those that are actually available with
+	the filterUnavailable() method. Callable.
+Downloader
+	Allows for downloading of all data streams. pullFromSource method pulls
+	from original archives, while pullFromS3 downloads from the GLAM AWS
+	S3 bucket. isAvailable method checks image availability.
+Image
+	Prototype for AncillaryImage and ModisImage. Allows getting and setting
+	status in database, ingesting image, and uploading regional statistics.
+	Create by passing path to image file on disk to constructor.
+AncillaryImage
+	This Image subclass should be used for all non-NDVI files.
+ModisImage
+	This Image subclass should be used for all NDVI files.
+
+Functions
+---------
+readCredentialsFile:None
+	Attempts to read glam_keys.json and write to environment variables. If no
+	credentials file exists in the expected location (two directory levels
+	above __init__.py), raises NoCredentialsError.
+getImageType:Image
+	Given path to an image file on disk, returns the appropriate Image
+	subclass. File must be well-named, i.e. 'PRODUCT.etc.TIF'
+purge:bool
+	Removes all trace of a given image file from database. Intended for
+	use with chirps-prelim data, which is no longer useful once final chirps
+	data becomes available. Requires authorization key. Use with extreme
+	caution.
+
+Command-Line Scripts
+--------------------
+glaminfo
+	Prints a summary of the package's classes, functions, and scripts, along
+	with the current version number.
+glamconfigure
+	Prompts user input to input credentials for password-protected data archives,
+	as well as the GLAM system database. These credentials are stored in
+	'glam_keys.json', two directories above __init__.py. AWS credentials should
+	instead be set through the 'awsconfigure' script of awscli.
+glamupdatedata
+	Performs an update on all data streams. First finds missing files and checks
+	for availability. For each available file, downloads, ingests, and calculates
+	statistics. Downloaded files are then deleted.
+"""
 
 from ._version import __version__
 
@@ -81,7 +148,7 @@ class NoCredentialsError(Exception):
 
 ## getting credentials
 
-def readCredentialsFile():
+def readCredentialsFile() -> None:
 	#log.info(__file__)
 	credDir = os.path.dirname(os.path.dirname(__file__))
 	credFile = os.path.join(credDir,"glam_keys.json")
@@ -2384,7 +2451,7 @@ def getImageType(in_path:str) -> Image:
 		raise BadInputError(f"Image type '{p}' not recognized.")
 
 # erases all records of a file from the s3 bucket and all databases -- USE ONLY AS A LAST RESORT
-def purge(product, date, auth_key):
+def purge(product, date, auth_key) -> bool:
 	"""
 	This function expunges a given product-date combination from existence, as if it never was. The files will be removed, all records will be deleted, and life will continue as usual.
 	This function 'un-persons' the file.
