@@ -438,7 +438,6 @@ class ToDoList:
 
 		def getAllMyd13q1() -> list:
 			"""Return list of string dates of all missing MYD13Q1 files"""
-			return []
 			
 			def getChronoMyd13q1() -> list:
 				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
