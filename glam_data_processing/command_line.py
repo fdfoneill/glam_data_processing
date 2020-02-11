@@ -144,8 +144,10 @@ def updateData():
 					log.debug("--stats generated")
 				os.remove(p)
 				log.debug("--file removed")
-		except UnavailableError:
+		except glam.UnavailableError:
 			log.info("(No file available)")
+		except:
+			log.error("FAILED")
 
 def getInfo():
 	## parse arguments
