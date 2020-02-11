@@ -3,7 +3,7 @@ import logging, os
 logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger("glam_command_line")
 
-import argparse, json, octvi, os, sys
+import argparse, glob, json, octvi, sys
 import glam_data_processing as glam
 
 def getYesNo(message:str) -> bool:
@@ -103,51 +103,59 @@ def updateData():
 	missing = glam.ToDoList()
 	missing.filterUnavailable()
 	downloader = glam.Downloader()
-	tempDir = os.path.dirname(__file__)
-	for f in missing:
-		product = f[0]
-		if product in octvi.supported_products and args.ancillary:
-			continue
-		if product in glam.ancillary_products and args.ndvi:
-			continue
-		if args.print_missing:
-			print("{0} {1}".format(*f))
-			continue
-		log.info("{0} {1}".format(*f))
-		try:
-			if not downloader.isAvailable(*f):
-				raise glam.UnavailableError("No file detected")
-			paths = downloader.pullFromSource(*f,tempDir)
-			# check that at least one file was downloaded
-			if len(paths) <1:
-				raise glam.UnavailableError("No file detected")
-			log.debug("-downloaded")
-			# iterate over file paths
-			for p in paths:
-				log.debug(p)
-				image = glam.Image(p)
-				if image.product == 'chirps':
-					log.debug("-purging corresponding chirps-prelim product")
-					try:
-						glam.purge('chirps-prelim',image.date,os.environ['glam_purge_key'])
-					except KeyError:
-						log.warning("glam_purge_key not set. Chirps preliminary product not purged.")
-				image.setStatus('downloaded',True)
-				log.debug(f"-collection: {image.collection}")
-				if not args.stats:
-					image.ingest()
-					image.setStatus('processed',True)
-					log.debug("--ingested")
-				if not args.ingest:
-					image.uploadStats()
-					image.setStatus('statGen',True)
-					log.debug("--stats generated")
-				os.remove(p)
-				log.debug("--file removed")
-		except glam.UnavailableError:
-			log.info("(No file available)")
-		except:
-			log.error("FAILED")
+	tempDir = os.path.join(os.path.dirname(__file__),"temp")
+	try:
+		os.mkdir(tempDir)
+	except FileExistsError:
+		pass
+	try:
+		for f in missing:
+			product = f[0]
+			if product in octvi.supported_products and args.ancillary:
+				continue
+			if product in glam.ancillary_products and args.ndvi:
+				continue
+			if args.print_missing:
+				print("{0} {1}".format(*f))
+				continue
+			log.info("{0} {1}".format(*f))
+			try:
+				if not downloader.isAvailable(*f):
+					raise glam.UnavailableError("No file detected")
+				paths = downloader.pullFromSource(*f,tempDir)
+				# check that at least one file was downloaded
+				if len(paths) <1:
+					raise glam.UnavailableError("No file detected")
+				log.debug("-downloaded")
+				# iterate over file paths
+				for p in paths:
+					log.debug(p)
+					image = glam.Image(p)
+					if image.product == 'chirps':
+						log.debug("-purging corresponding chirps-prelim product")
+						try:
+							glam.purge('chirps-prelim',image.date,os.environ['glam_purge_key'])
+						except KeyError:
+							log.warning("glam_purge_key not set. Chirps preliminary product not purged.")
+					image.setStatus('downloaded',True)
+					log.debug(f"-collection: {image.collection}")
+					if not args.stats:
+						image.ingest()
+						image.setStatus('processed',True)
+						log.debug("--ingested")
+					if not args.ingest:
+						image.uploadStats()
+						image.setStatus('statGen',True)
+						log.debug("--stats generated")
+					os.remove(p)
+					log.debug("--file removed")
+			except glam.UnavailableError:
+				log.info("(No file available)")
+			except:
+				log.error("FAILED")
+	finally:
+		for f in glob.glob(os.path.join(tempDir,"*")):
+			os.remove(f)
 
 def getInfo():
 	## parse arguments
