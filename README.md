@@ -10,13 +10,16 @@ When working with the volume of data that we are, it's vital to have a re-usable
 
 # Features
 
-## Downloading
+
+## In Python
+
+### Downloading
 
 The `Downloader` class can be used to pull any available data product, whether from its source (NASA, Copernicus, etc.) or from the GLAM AWS S3 bucket. The `Downloader.pull()` method allows quick and easy retrieval of image files. The resulting file name is automatically formatted for use with `Image` objects (see below), allowing for efficient automation.
 
 Downloading of NDVI products relies on the <code><a href="https://github.com/fdfoneill/octvi">octvi</a></code> package.
 
-## Ingestion and Statistics Generation
+### Ingestion and Statistics Generation
 
 This module offers two classes used for image ingestion and stats generation: one for use with ancillary data products, and one for use with NDVI products. Instances are initialized by providing the path to a well-named image on disk (e.g. `Image("C:/swi.2019-01-01.tif")`). Both classes inherit from the generic `Image` class, and thus share common attributes and methods.
 
@@ -24,17 +27,30 @@ This module offers two classes used for image ingestion and stats generation: on
 
 `Image.uploadStats()` extracts and uploads regional statistics for the image, making them available for retrieval from the GLAM statistics database. Note that the image will not be visible through the GLAM system unless successfully ingested (see `Image.ingest()` above).
 
-### Ancillary Ingestion
+#### Ancillary Ingestion
 
 Handling of ancillary products (CHIRPS rainfall, MERRA-2 temperature, and Soil Water Index) should be done through the `AncillaryImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
 
 Date format for ancillary files is "%Y-%m-%d"; e.g. "2019-01-01".
 
-### NDVI Ingestion
+#### NDVI Ingestion
 
 Handling of NDVI products (M\*D09Q1, M\*D13Q1, etc) should be done through the `ModisImage` class. When an instance of this class is successfully initialized (by passing the constructor the full path to the file on disk), the `ingest()` and `uploadStats()` methods will be available (see above).
 
 Date format for NDVI files is "%Y.%j"; e.g. "2019.001".
+
+
+## From the Command Line
+
+It is possible to set credentials and update all data streams from the command line.
+
+### Setting Credentials
+
+The `glamconfigure` script prompts the user to configure their credentials for the GLAM database and for the two password-protected data archives (MERRA-2 and Copernicus) in the data stream. These credentials are written to a json file that `glam_data_processing` reads upon load.
+
+### Updating Data
+
+The `glamupdatedata` script is an all-in-one tool for ensuring that the GLAM archive is up to date. The script finds all available missing files, downloads them, ingests them and calculates statistics on them, and then deletes the files on disk. This script can be put into a cron job to keep the data pool as up-to-date as possible.
 
 # Code Example
 
