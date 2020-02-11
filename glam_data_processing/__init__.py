@@ -7,7 +7,7 @@
 # Description: 
 ##############################################################################
 
-__version__ = "1.0.0"
+from ._version import __version__
 
 ## set up logging
 import logging, os

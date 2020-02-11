@@ -10,8 +10,10 @@ def readme():
 	with open('README.md') as f:
 		return f.read()
 
+exec(open('glam_data_processing/_version.py').read())
+
 setup(name='glam_data_processing',
-		version='1.0.0',
+		version=__version__,
 		description='Data downloading and handling for GLAM system',
 		long_description=readme(),
 		long_description_content_type='text/markdown',
