@@ -4,8 +4,77 @@
 # Author: F. Dan O'Neill
 # Date: 10/04/2019
 # Script title: glam_data_processing.py
-# Description: 
 ##############################################################################
+
+"""glam_data_processing
+
+This module facilitates handling of the various types of imagery date used
+in the NASA Harvest GLAM system. These data types include NDVI imagery from
+MODIS, CHIRPS rainfall, Copernicus Soil-Water Index, and MERRA-2 temperature.
+
+Imagery can be pulled from source archives or the GLAM AWS S3 bucket using 
+the Downloader class. Downloaded files can then be used to create Image objects,
+which allow for ingestion to the system and the calculation of regional
+statistics.
+
+***
+
+Classes
+-------
+BadInputError
+NoCredentialsError
+UploadFailureError
+UnavailableError
+RecordNotFoundError
+ToDoList
+	Collects all missing files that are potentially available for each data
+	stream. Can be pared down to only those that are actually available with
+	the filterUnavailable() method. Callable.
+Downloader
+	Allows for downloading of all data streams. pullFromSource method pulls
+	from original archives, while pullFromS3 downloads from the GLAM AWS
+	S3 bucket. isAvailable method checks image availability.
+Image
+	Prototype for AncillaryImage and ModisImage. Allows getting and setting
+	status in database, ingesting image, and uploading regional statistics.
+	Create by passing path to image file on disk to constructor.
+AncillaryImage
+	This Image subclass should be used for all non-NDVI files.
+ModisImage
+	This Image subclass should be used for all NDVI files.
+
+Functions
+---------
+readCredentialsFile:None
+	Attempts to read glam_keys.json and write to environment variables. If no
+	credentials file exists in the expected location (two directory levels
+	above __init__.py), raises NoCredentialsError.
+getImageType:Image
+	Given path to an image file on disk, returns the appropriate Image
+	subclass. File must be well-named, i.e. 'PRODUCT.etc.TIF'
+purge:bool
+	Removes all trace of a given image file from database. Intended for
+	use with chirps-prelim data, which is no longer useful once final chirps
+	data becomes available. Requires authorization key. Use with extreme
+	caution.
+
+Command-Line Scripts
+--------------------
+glaminfo
+	Prints a summary of the package's classes, functions, and scripts, along
+	with the current version number.
+glamconfigure
+	Prompts user input to input credentials for password-protected data archives,
+	as well as the GLAM system database. These credentials are stored in
+	'glam_keys.json', two directories above __init__.py. AWS credentials should
+	instead be set through the 'awsconfigure' script of awscli.
+glamupdatedata
+	Performs an update on all data streams. First finds missing files and checks
+	for availability. For each available file, downloads, ingests, and calculates
+	statistics. Downloaded files are then deleted.
+"""
+
+from ._version import __version__
 
 ## set up logging
 import logging, os
@@ -15,7 +84,7 @@ log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
 ## import modules
-import sys, glob, gdal, boto3, hashlib, math, gzip, shutil, requests, ftplib, re, subprocess, collections, urllib
+import sys, glob, gdal, boto3, hashlib, json, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from gdalnumeric import *
@@ -33,16 +102,17 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
+admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
+crops = ["maize","rice","soybean","springwheat","winterwheat"]
 
 ## decorators
 
 def log_io(func):
 	def wrapped(*args,**kwargs):
 		result = func(*args,**kwargs)
-		log.debug(f"{func.__name__} called with arguments " + " ".join((str(a) for a in args)) + f" with result {result}")
+		log.debug(f"{func.__name__} called with arguments " + " ".join((str(a) for a in args)) + f" with result {str(result)}")
 		return result
 	return wrapped
-		
 
 ## custom error classes
 
@@ -76,12 +146,42 @@ class NoCredentialsError(Exception):
 	def __str__(self):
 		return repr(self.data)
 
+## getting credentials
+
+def readCredentialsFile() -> None:
+	#log.info(__file__)
+	credDir = os.path.dirname(os.path.dirname(__file__))
+	credFile = os.path.join(credDir,"glam_keys.json")
+	#log.info(credFile)
+	try:
+		with open(credFile,'r') as f:
+			keys = json.loads(f.read())
+		log.debug(f"Found credentials file: {credFile}")
+	except FileNotFoundError:
+		raise NoCredentialsError("Credentials file ('glam_keys.json') not found.")
+	for k in ["merrausername","merrapassword","swiusername","swipassword","glam_mysql_user","glam_mysql_pass"]:
+		try:
+			log.debug(f"Adding variable to environment: {k}")
+			os.environ[k] = keys[k]
+		except KeyError:
+			log.debug(f"Variable not found in credentials file")
+			continue
+
+try:
+	readCredentialsFile()
+except NoCredentialsError:
+	log.warning("No credentials file found. Reading directly from environment variables instead.")
+
 ## other class definitions
 
 # instance creates and stores list of pending-download files for each type (merra,chirps,swi). Note that the attribute is named merra and not merra-2
 class ToDoList:
 	"""
 	A class to generate and store lists of files that need to be checked for availability and, if available, downloaded
+
+	An instance of this class can, in addition to its attributes and methods, be treated as an iterator. It will yield
+	a series of tuples, of the form ("PRODUCT","DATE"), for the dates in all of its product attributes (see below). If
+	the instance is called (i.e. ToDoList()), each of these tuples will be printed.
 
 	...
 
@@ -99,6 +199,14 @@ class ToDoList:
 		a list of string dates (%Y-%m-%d), representing potentially available chirps preliminary data files
 	merra:list
 		a list of string dates (%Y-%m-%d), representing potentially available merra-2 files
+	mod09q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MOD09Q1 files
+	myd09q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MYD09Q1 files
+	mod13q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MOD13Q1 files
+	myd13q1:list
+		a list of string dates ("%Y-%m-%d"), representing potentially available MYD13Q1 files
 	swi:list
 		a list of string dates (%Y-%m-%d), representing potentially available swi files
 
@@ -115,14 +223,18 @@ class ToDoList:
 		mysql_user = os.environ['glam_mysql_user']
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
-	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
 
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+
+	except KeyError:
+		log.warning("Database credentials not found. ToDoList objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+
+	
 
 	def __init__(self):
+		
 		self.refresh()
 
 	def __repr__(self):
@@ -137,7 +249,15 @@ class ToDoList:
 		for d in self.merra:
 			yield ("merra-2",d)
 		for d in self.swi:
-			yield("swi",d)
+			yield ("swi",d)
+		for d in self.mod09q1:
+			yield ("MOD09Q1",d)
+		for d in self.myd09q1:
+			yield ("MYD09Q1",d)
+		for d in self.mod13q1:
+			yield ("MOD13Q1",d)
+		for d in self.myd13q1:
+			yield ("MYD13Q1",d)
 
 	def __call__(self):
 		for f in self:
@@ -250,10 +370,102 @@ class ToDoList:
 
 			return getDbSwi() + getChronoSwi()
 
+		def getAllMod09q1() -> list:
+			"""Return list of string dates of all missing MOD09Q1 files"""
+
+			def getChronoMod09q1() -> list:
+				"""Return list of string dates of MOD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MOD09Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					oldYear = latest.strftime("%Y")
+					latest = latest + timedelta(days = 8)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
+					log.debug(f"Found missing file in valid date range: MOD09Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MOD09Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MOD09Q1") + getChronoMod09q1()
+
+		def getAllMyd09q1() -> list:
+			"""Return list of string dates of all missing MYD09Q1 files"""
+
+			def getChronoMyd09q1() -> list:
+				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MYD09Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					oldYear = latest.strftime("%Y")
+					latest = latest + timedelta(days = 8)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
+					log.debug(f"Found missing file in valid date range: MYD09Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MYD09Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MYD09Q1") + getChronoMyd09q1()
+
+		def getAllMod13q1() -> list:
+			"""Return list of string dates of all missing MOD13Q1 files"""
+			
+			def getChronoMod13q1() -> list:
+				"""Return list of string dates for MOD13Q1 files between last database entry and current time"""
+				latest = getLatestDate("MOD13Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					oldYear = latest.strftime("%Y")
+					latest = latest + timedelta(days = 16)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
+					log.debug(f"Found missing file in valid date range: MOD13Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MOD13Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MOD13Q1") + getChronoMod13q1()
+
+		def getAllMyd13q1() -> list:
+			"""Return list of string dates of all missing MYD13Q1 files"""
+			
+			def getChronoMyd13q1() -> list:
+				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MYD13Q1")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					oldYear = latest.strftime("%Y")
+					latest = latest + timedelta(days = 16)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=9)
+					log.debug(f"Found missing file in valid date range: MYD13Q1 for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MYD13Q1',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
+
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
 		self.chirps_prelim = getAllChirpsPrelim()
 		self.swi = getAllSwi()
+		self.mod09q1 = getAllMod09q1()
+		self.myd09q1 = getAllMyd09q1()
+		self.mod13q1 = getAllMod13q1()
+		self.myd13q1 = getAllMyd13q1()
 		self.timestamp = datetime.now()
 		self.filtered = False
 
@@ -263,6 +475,10 @@ class ToDoList:
 		self.chirps_prelim = [f for f in self.chirps_prelim if filterMachine.isAvailable('chirps-prelim',f)]
 		self.merra = [f for f in self.merra if filterMachine.isAvailable('merra-2',f)]
 		self.swi = [f for f in self.swi if filterMachine.isAvailable('swi',f)]
+		self.mod09q1 = [f for f in self.mod09q1 if filterMachine.isAvailable("MOD09Q1",f)]
+		self.myd09q1 = [f for f in self.myd09q1 if filterMachine.isAvailable("MYD09Q1",f)]
+		self.mod13q1 = [f for f in self.mod13q1 if filterMachine.isAvailable("MOD13Q1",f)]
+		self.myd13q1 = [f for f in self.myd13q1 if filterMachine.isAvailable("MYD13Q1",f)]
 		self.filtered = True
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
@@ -362,16 +578,26 @@ class Downloader:
 
 			dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
 			year = dateObj.strftime("%Y")
-			month = dateObj.strftime("%M")
-			day = dateObj.strftime("%d")
+			month = dateObj.strftime("%m".zfill(2))
+			day = dateObj.strftime("%d".zfill(2))
 			url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
 			#print(url)
 
-			request = requests.get(url,auth=(self.swiUsername,self.swiPassword))
-			if request.status_code == 200:
-				return True
-			else:
-				return False
+			with requests.Session() as session:
+				session.auth = (self.swiUsername, self.swiPassword)
+				request = session.request('get',url)
+				if request.status_code == 200:
+					if request.headers['Content-Type'] == 'application/octet-stream':
+						return True
+				else:
+					return False
+
+			#r1 = requests.get(url)
+			#request = requests.get(url,auth=(self.swiUsername,self.swiPassword))
+			#if request.status_code == 200:
+			#	return True
+			#else:
+			#	return False
 
 			#try:
 				### log into copernicus
@@ -422,9 +648,42 @@ class Downloader:
 				#log.error("Connection reset error; Copernicus kicked you off")
 				#return False
 
+		def checkMod09q1(date:str) -> bool:
+			if len(octvi.url.getDates("MOD09Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMyd09q1(date:str) -> bool:
+			if len(octvi.url.getDates("MYD09Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMod13q1(date:str) -> bool:
+			if len(octvi.url.getDates("MOD13Q1",date)) > 0:
+				return True
+			else:
+				return False
+
+		def checkMyd13q1(date:str) -> bool:
+			if len(octvi.url.getDates("MYD13Q1",date)) > 0:
+				return True
+			else:
+				return False
+
 		if not self.credentials:
 			raise NoCredentialsError("Data archive credentials not set. Use 'glamconfigure' on command line to set credentials.")
-		actions = {'merra-2':checkMerra,'chirps':checkChirps,'chirps-prelim':checkChirpsPrelim,'swi':checkSwi}
+		actions = {
+			'merra-2':checkMerra,
+			'chirps':checkChirps,
+			'chirps-prelim':checkChirpsPrelim,
+			'swi':checkSwi,
+			'MOD09Q1':checkMod09q1,
+			'MYD09Q1':checkMyd09q1,
+			'MOD13Q1':checkMod13q1,
+			'MYD13Q1':checkMyd13q1
+			}
 		return actions[product](date)
 
 	def pullFromSource(self,product:str,date:str,out_dir:str,) -> tuple:
@@ -530,7 +789,7 @@ class Downloader:
 				with open(clipFile,'wb') as a:
 					with open(in_file,'rb') as b:
 						shutil.copyfileobj(b,a)
-				clip_args = ["gdal_translate", "-projwin",str(west),str(north),str(east),str(south),clipFile,in_file]
+				clip_args = ["gdal_translate", "-q", "-projwin",str(west),str(north),str(east),str(south),clipFile,in_file]
 				subprocess.call(clip_args)
 				os.remove(clipFile)
 			return 0
@@ -548,7 +807,7 @@ class Downloader:
 					shutil.copyfileobj(b,a)
 
 			## add tiling to file
-			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW"]
+			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW"]
 			subprocess.call(cloudOpArgs)
 
 			## remove intermediate
@@ -671,9 +930,9 @@ class Downloader:
 				minOut = os.path.join(out_dir,f"M2_MIN.{urlDate}.TEMP.tif")
 				maxOut = os.path.join(out_dir,f"M2_MAX.{urlDate}.TEMP.tif")
 				meanOut = os.path.join(out_dir,f"M2_MEAN.{urlDate}.TEMP.tif")
-				subprocess.call(["gdal_translate",sdMin,minOut]) # calling the command line to produce the tiff
-				subprocess.call(["gdal_translate",sdMax,maxOut]) # calling the command line to produce the tiff
-				subprocess.call(["gdal_translate",sdMean,meanOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMin,minOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMax,maxOut]) # calling the command line to produce the tiff
+				subprocess.call(["gdal_translate","-q",sdMean,meanOut]) # calling the command line to produce the tiff
 
 				## delete netCDF file
 				os.remove(outNc4)
@@ -762,7 +1021,7 @@ class Downloader:
 				os.remove(file_zipped) # delete zipped version
 
 				## apply nodata mask to file
-				chirps_noData_args = ["gdal_translate","-a_nodata", "-9999",tf,file_unzipped] # apply NoData mask
+				chirps_noData_args = ["gdal_translate","-q","-a_nodata", "-9999",tf,file_unzipped] # apply NoData mask
 				subprocess.call(chirps_noData_args)
 				os.remove(tf) # delete unmasked file
 
@@ -825,7 +1084,7 @@ class Downloader:
 					return ()
 
 				## apply nodata mask to file
-				chirps_noData_args = ["gdal_translate","-a_nodata", "-9999",tf,file_out] # apply NoData mask
+				chirps_noData_args = ["gdal_translate","-q","-a_nodata", "-9999",tf,file_out] # apply NoData mask
 				subprocess.call(chirps_noData_args)
 				os.remove(tf) # delete unmasked file
 
@@ -858,8 +1117,8 @@ class Downloader:
 			out = os.path.join(out_dir,f"swi.{date}.tif")
 			dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
 			year = dateObj.strftime("%Y")
-			month = dateObj.strftime("%m")
-			day = dateObj.strftime("%d")
+			month = dateObj.strftime("%m".zfill(2))
+			day = dateObj.strftime("%d".zfill(2))
 			
 			## download file
 			#url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_201911251200_GLOBE_ASCAT_V3.1.1.nc"
@@ -985,7 +1244,7 @@ class Downloader:
 					subdataset=sd[0]
 			del dataset
 			# translate subdataset to its own tiff and delete full netCDF
-			swiArgs = ["gdal_translate",subdataset,out] # arguments for gdal to transform subdataset into independent Tiff
+			swiArgs = ["gdal_translate","-q",subdataset,out] # arguments for gdal to transform subdataset into independent Tiff
 			subprocess.call(swiArgs) # calling the command line to produce the tiff
 			os.remove(file_nc)
 
@@ -1000,7 +1259,64 @@ class Downloader:
 			## return tuple of file path string
 			return tuple([out])
 
-		actions = {"swi":downloadSwi,"chirps":downloadChirps,"chirps-prelim":downloadChirpsPrelim,"merra-2":downloadMerra2}
+		def downloadMod09q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MOD09Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MOD09Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return tuple([octvi.globalNdvi(product,date,outPath)])
+
+		def downloadMyd09q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MYD09Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MYD09Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return tuple([octvi.globalNdvi(product,date,outPath)])
+
+		def downloadMod13q1(date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MOD13Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MOD13Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return tuple([octvi.globalNdvi(product,date,outPath)])
+
+		def downloadMyd13q1 (date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MYD13Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MYD13Q1"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return tuple([octvi.globalNdvi(product,date,outPath)])
+
+		actions = {
+			"swi":downloadSwi,
+			"chirps":downloadChirps,
+			"chirps-prelim":downloadChirpsPrelim,
+			"merra-2":downloadMerra2,
+			"MOD09Q1":downloadMod09q1,
+			"MYD09Q1":downloadMyd09q1,
+			"MOD13Q1":downloadMod13q1,
+			"MYD13Q1":downloadMyd13q1
+			}
 		return actions[product](date=date,out_dir=out_dir)
 
 	def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
@@ -1039,8 +1355,11 @@ class Downloader:
 				results.append(outFile)
 				try:
 					s3_client.download_file(s3_bucket,s3_key,outFile)
+				except ClientError:
+					log.error("File not available on S3")
+					return ()
 				except Exception:
-					log.error("File download from S3 failed")
+					log.exception("File download from S3 failed")
 					return ()
 		elif product == 'merra-2':
 			s3_key = f"rasters/{product}.{date}.{collection}.tif"
@@ -1048,8 +1367,11 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
+				return ()
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 		
 		elif product in ["swi","chirps","chirps-prelim"]:
@@ -1058,8 +1380,11 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
+				return ()
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 		else:
 			year = datetime.strptime(date,"%Y-%m-%d").strftime("%Y")
@@ -1069,8 +1394,11 @@ class Downloader:
 			results.append(outFile)
 			try:
 				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
+				return ()
 			except Exception:
-				log.error("File download from S3 failed")
+				log.exception("File download from S3 failed")
 				return ()
 
 		## return tuple of file paths
@@ -1136,25 +1464,30 @@ class Image:
 	"""
 
 	# mysql credentials
+	noCred = None
 	try:
 		mysql_user = os.environ['glam_mysql_user']
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
-	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
-	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
-	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
-	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
-	admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-	crops = ["maize","rice","soybean","springwheat","winterwheat"]
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+		products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+		stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+	except KeyError:
+		log.warning("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+		noCred = True
+
 
 	def __init__(self,file_path:str):
+		if self.noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
+		if not os.path.exists(file_path):
+			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
 		if self.product not in ["merra-2","chirps","chirps-prelim","swi"]:
@@ -1170,6 +1503,8 @@ class Image:
 			self.doy = datetime.strptime(self.date,"%Y-%m-%d").strftime("%j")
 		except:
 			raise BadInputError("Incorrect date format in file name. Format is: '{product}.{yyyy-mm-dd}.tif'")
+		self.admins = admins
+		self.crops = crops
 		self.cropMaskFiles = {crop:os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product}.{crop}.tif") for crop in self.crops}
 		self.adminFiles = {level:os.path.join(os.path.dirname(os.path.abspath(__file__)),f"statscode","Regions",f"{self.product}.{level}.tif") for level in self.admins}
 
@@ -1270,7 +1605,7 @@ class Image:
 			mysql_pass = os.environ['glam_mysql_pass']
 			mysql_db = 'modis_dev'
 		except KeyError:
-			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
@@ -1732,7 +2067,8 @@ class AncillaryImage(Image):
 	setStatus(stage,status) -> None
 		Writes new status of image to database
 	isProcessed() -> bool
-		Returns whether the file has been uploaded to the database and S3 bucket, according to the product_status table
+		Returns whether the file has b
+		een uploaded to the database and S3 bucket, according to the product_status table
 	statsGenerated() -> bool
 		Returns whether statistics have been generated and uploaded to the database, according to the product_status table
 	ingest() -> None
@@ -1742,7 +2078,10 @@ class AncillaryImage(Image):
 	uploadStats() -> None
 		Calculates and uploads all statistics for the given data file to the database 
 	"""
+	def __repr__(self):
+		return f"<Instance of AncillaryImage, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
 	pass
+
 
 class ModisImage(Image):
 	"""
@@ -1787,41 +2126,54 @@ class ModisImage(Image):
 	-------
 	getStatus() -> dict
 		Returns dictionary of product status: {'downloade':bool,'processed':bool,'statGen':bool}
+	setStatus(stage,status) -> None
+		Writes new status of image to database
+	isProcessed() -> bool
+		Returns whether the file has been uploaded to the database and S3 bucket, according to the product_status table
+	statsGenerated() -> bool
+		Returns whether statistics have been generated and uploaded to the database, according to the product_status table
+	ingest() -> None
+		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
 	getStatsTables() -> dict
 		Returns a nested dictionary, organized by crop and admin; result[crop][admin] -> StatsTable object with attributes name:str and exists:bool
 	uploadStats() -> None
-		Calculates and uploads all statistics for the given data file to the database
+		Calculates and uploads all statistics for the given data file to the database 
 	"""
 
 	# mysql credentials
-	try:
-		mysql_user = os.environ['glam_mysql_user']
-		mysql_pass = os.environ['glam_mysql_pass']
-		mysql_db = 'modis_dev'
-	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
-	engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
-	metadata = db.MetaData()
-	masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
-	regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
-	products = db.Table('products', metadata, autoload=True, autoload_with=engine)
-	stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
-	product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+	#try:
+		#mysql_user = os.environ['glam_mysql_user']
+		#mysql_pass = os.environ['glam_mysql_pass']
+		#mysql_db = 'modis_dev'
+	#except KeyError:
+		#log.warning("Database credentials not found. ModisImage objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+	#engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+	#metadata = db.MetaData()
+	#masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+	#regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+	#products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+	#stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+	#product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
-	admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-	crops = ["maize","rice","soybean","springwheat","winterwheat"]
 
 	# override init inheritance; MODIS dates are different
 	def __init__(self,file_path:str):
+		if self.noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
+		if not os.path.exists(file_path):
+			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
-		if self.product not in ["MOD09Q1","MOD13Q1","MYD09Q1","MYD13Q1","VNP09H1","MOD09Q1N","MOD13Q4N"]:
+		if self.product not in octvi.supported_products:
 			raise BadInputError(f"Product type '{self.product}' not recognized")
 		self.collection = '006'
 		self.year = os.path.basename(file_path).split(".")[1]
 		self.doy = os.path.basename(file_path).split(".")[2]
 		self.date = datetime.strptime(f"{self.year}-{self.doy}","%Y-%j").strftime("%Y-%m-%d")
+		self.admins = admins
+		self.crops = crops
+		#print(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))
 		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops}
 		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"{self.product[:2]}*.{level}.tif"))[0] for level in self.admins}
 
@@ -1844,7 +2196,7 @@ class ModisImage(Image):
 			mysql_pass = os.environ['glam_mysql_pass']
 			mysql_db = 'modis_dev'
 		except KeyError:
-			raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 		mysql_db = 'modis_dev'
 		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
@@ -2113,10 +2465,25 @@ class ModisImage(Image):
 			if x.rowcount == 0:
 				connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
 
+
 ## define functions
 
+def getImageType(in_path:str) -> Image:
+	"""
+	Given path to downloaded file, returns
+	either ModisImage or AncillaryImage,
+	depending on the file type
+	"""
+	p = os.path.basename(in_path).split(".")[0]
+	if p in ancillary_products:
+		return AncillaryImage
+	elif p in octvi.supported_products:
+		return ModisImage
+	else:
+		raise BadInputError(f"Image type '{p}' not recognized.")
+
 # erases all records of a file from the s3 bucket and all databases -- USE ONLY AS A LAST RESORT
-def purge(product, date, auth_key):
+def purge(product, date, auth_key) -> bool:
 	"""
 	This function expunges a given product-date combination from existence, as if it never was. The files will be removed, all records will be deleted, and life will continue as usual.
 	This function 'un-persons' the file.
@@ -2148,7 +2515,7 @@ def purge(product, date, auth_key):
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 	except KeyError:
-		raise NoCredentialsError("Database credentials not found.\nUse 'glamconfigure' on command line to set archive credentials.")
+		raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 	else:
 		# setup
@@ -2218,13 +2585,14 @@ def updateGlamData():
 	## create necessary objects
 	downloader = Downloader() # downloader object
 	missingFiles = ToDoList() # collect missing dates for each file type
+	missingFiles.filterUnavailable() # pare down to only available files
 	## iterate over ToDoList object
 	for f in missingFiles:
 		#product = f[0]
 		#date = f[1]
 		log.info("{0} {1}".format(*f))
 		try:
-			if not downloader.isAvailable(*f):
+			if not downloader.isAvailable(*f): # this should never happen
 				raise UnavailableError("No file detected")
 			paths = downloader.pullFromSource(*f,f"\\\\webtopus.iluci.org\\c$\\data\\Dan\\{f[0]}_archive")
 			# check that at least one file was downloaded
@@ -2234,22 +2602,28 @@ def updateGlamData():
 			# iterate over file paths
 			for p in paths:
 				#log.debug(p)
-				image = Image(p)
-				if image.product == 'chirps':
-					log.debug("-purging corresponding chirps-prelim product")
-					purge('chirps-prelim',image.date,'glam!23')
+				image = getImageType(p)(p) # create correct of ModisImage or AncillaryImage object
+				#if image.product == 'chirps':
+				#	log.debug("-purging corresponding chirps-prelim product")
+				#	purge('chirps-prelim',image.date,None)
 				image.setStatus('downloaded',True)
 				log.debug(f"-collection: {image.collection}")
-				image.ingest()
-				image.setStatus('processed',True)
-				log.debug("--ingested")
-				image.uploadStats()
-				image.setStatus('statGen',True)
-				log.debug("--stats generated")
-				#os.remove(p) # once we move to aws, we'll download 1 file at a time and remove them when no longer needed
+				ingest = image.ingest()
+				if ingest:
+					image.setStatus('processed',True)
+					log.debug("--ingested")
+				stats = image.uploadStats()
+				if stats:
+					image.setStatus('statGen',True)
+					log.debug("--stats generated")
+				#os.remove(p) # once we fully move to aws, we'll download 1 file at a time and remove them when no longer needed
 				#log.debug("--file removed")
+		# again, this should never happen
 		except UnavailableError:
 			log.info("(No file available)")
+		except:
+			log.error("FAILED")
+			continue
 
 # main function
 def main():

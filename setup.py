@@ -10,8 +10,10 @@ def readme():
 	with open('README.md') as f:
 		return f.read()
 
+exec(open('glam_data_processing/_version.py').read())
+
 setup(name='glam_data_processing',
-		version='1.0.0',
+		version=__version__,
 		description='Data downloading and handling for GLAM system',
 		long_description=readme(),
 		long_description_content_type='text/markdown',
@@ -25,6 +27,7 @@ setup(name='glam_data_processing',
 			'boto3',
 			'requests',
 			'numpy',
+			'octvi',
 			'pandas',
 			'terracotta',
 			'sqlalchemy',
@@ -41,7 +44,8 @@ setup(name='glam_data_processing',
 
 			'console_scripts': [
 				'glamconfigure=glam_data_processing.command_line:setCredentials',
-				'glamupdatedata=glam_data_processing.command_line:updateData'
+				'glamupdatedata=glam_data_processing.command_line:updateData',
+				'glaminfo=glam_data_processing.command_line:getInfo'
 				]
 			}
 		)
