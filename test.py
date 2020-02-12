@@ -97,6 +97,7 @@ class TestFunctionality(TestCase):
 
 
 def main():
+	res = [0,0]
 	try:
 		funcObj = TestFunctionality()
 	except:
@@ -112,33 +113,44 @@ def main():
 	try:
 		impObj.test_import()
 		print("test_import: PASSED")
+		res[0] += 1
 	except:
 		print("test_import: FAILED")
+		res[1] +=1
 
 	try:
 		funcObj.test_ToDoList()
 		print("test_ToDoList: PASSED")
+		res[0] += 1
 	except:
 		print("test_ToDoList: FAILED")
+		res[1] +=1
 
 	try:
 		funcObj.test_pullFromSourceAndImage()
 		print("test_pullFromSourceAndImage: PASSED")
+		res[0] += 1
 	except:
 		print("test_pullFromSourceAndImage: FAILED")
+		res[1] +=1
 
 	try:
 		funcObj.test_pullFromS3AndImage()
 		print("test_pullFromS3AndImage: PASSED")
+		res[0] += 1
 	except:
 		print("test_pullFromS3AndImage: FAILED")
+		res[1] +=1
 
 	try:
 		funcObj.test_pullModisFromS3AndImage()
 		print("test_pullModisFromS3AndImage: PASSED")
+		res[0] += 1
 	except:
 		logging.exception("FAILURE")
 		print("test_pullModisFromS3AndImage: FAILED")
+		res[1] +=1
+	print("Ran {0} tests | Successes: {1} | Failures: {2}".format(sum(res),*res))
 
 if __name__ == "__main__":
 	main()
