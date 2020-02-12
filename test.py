@@ -111,34 +111,34 @@ def main():
 
 	try:
 		impObj.test_import()
-		print("test_import: passed")
+		print("test_import: PASSED")
 	except:
-		print("test_import: failed")
+		print("test_import: FAILED")
 
 	try:
 		funcObj.test_ToDoList()
-		print("test_ToDoList: passed")
+		print("test_ToDoList: PASSED")
 	except:
-		print("test_ToDoList: failed")
+		print("test_ToDoList: FAILED")
 
 	try:
 		funcObj.test_pullFromSourceAndImage()
-		print("test_pullFromSourceAndImage: passed")
+		print("test_pullFromSourceAndImage: PASSED")
 	except:
-		print("test_pullFromSourceAndImage: failed")
+		print("test_pullFromSourceAndImage: FAILED")
 
 	try:
 		funcObj.test_pullFromS3AndImage()
-		print("test_pullFromS3AndImage: passed")
+		print("test_pullFromS3AndImage: PASSED")
 	except:
-		print("test_pullFromS3AndImage: failed")
+		print("test_pullFromS3AndImage: FAILED")
 
 	try:
 		funcObj.test_pullModisFromS3AndImage()
-		print("test_pullModisFromS3AndImage: passed")
+		print("test_pullModisFromS3AndImage: PASSED")
 	except:
 		logging.exception("FAILURE")
-		print("test_pullModisFromS3AndImage: failed")
+		print("test_pullModisFromS3AndImage: FAILED")
 
 if __name__ == "__main__":
 	main()
