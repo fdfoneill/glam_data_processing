@@ -108,9 +108,9 @@ admins_gaul = ["gaul1"]
 admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
 admins = admins_gaul + admins_brazil
 
-crops_gaul = ["maize","rice","soybean","springwheat","winterwheat"]
+crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat"]
 crops_brazil = []
-crops = crops_gaul + crops_brazil
+crops = crops_cropmonitor + crops_brazil
 
 ## decorators
 
@@ -1752,6 +1752,19 @@ class Image:
 			If the table does not exist (table.exists==False) then it is created
 			The dataframe is uploaded to the table
 		If all stats are successfully uploaded, the function updates product_status.statGen to True
+
+		***
+
+		Parameters
+		----------
+		stats_tables:dict
+			Nested dictionary of stats table IDs. Create with getStatsTables()
+		admin_level:str
+			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
+			have statistics run. Allows for running only certain combinations.
+		crop_level:str
+			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			have statistics run. Allows for running only certain combinations.
 		"""
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2004,7 +2017,7 @@ class Image:
 			for crop in stats_tables.keys():
 				if crop_level == "BRAZIL" and crop not in crops_brazil:
 					continue
-				if crop_level == "GAUL" and crop not in crops_gaul:
+				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
 					continue
 				for admin in stats_tables[crop].keys():
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
@@ -2272,6 +2285,31 @@ class ModisImage(Image):
 
 	# override uploadStats() to use windowed read
 	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL") -> None:
+		"""
+		Calculates and uploads all statistics for the given data file to the database
+
+		Description
+		-----------
+		For each crop x admin combination, a pandas dataframe of statistics by region is created
+		These combinations are then paired up with the corresponding stats table name, as found in stats_tables
+		For each table:
+			If the table does not exist (table.exists==False) then it is created
+			The dataframe is uploaded to the table
+		If all stats are successfully uploaded, the function updates product_status.statGen to True
+
+		***
+
+		Parameters
+		----------
+		stats_tables:dict
+			Nested dictionary of stats table IDs. Create with getStatsTables()
+		admin_level:str
+			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
+			have statistics run. Allows for running only certain combinations.
+		crop_level:str
+			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			have statistics run. Allows for running only certain combinations.
+		"""
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2463,7 +2501,7 @@ class ModisImage(Image):
 			for crop in stats_tables.keys():
 				if crop_level == "BRAZIL" and crop not in crops_brazil:
 					continue
-				if crop_level == "GAUL" and crop not in crops_gaul:
+				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
 					continue
 				for admin in stats_tables[crop].keys():
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
