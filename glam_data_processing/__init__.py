@@ -80,6 +80,7 @@ from ._version import __version__
 import logging, os
 from datetime import datetime, timedelta
 logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
+#logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
@@ -102,8 +103,14 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
-admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-crops = ["maize","rice","soybean","springwheat","winterwheat"]
+
+admins_gaul = ["gaul1"]
+admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
+admins = admins_gaul + admins_brazil
+
+crops_gaul = ["maize","rice","soybean","springwheat","winterwheat"]
+crops_brazil = []
+crops = crops_gaul + crops_brazil
 
 ## decorators
 
@@ -268,7 +275,7 @@ class ToDoList:
 		def getDbMissing(prod:str) -> list:
 			"""Return list of string dates of files in database where 'product'=={prod} and 'downloaded'==False"""
 			with self.engine.begin() as connection:
-				r = connection.execute(f"SELECT date FROM product_status WHERE product='{prod}' AND downloaded = 0;").fetchall()
+				r = connection.execute(f"SELECT date FROM product_status WHERE product='{prod}' AND completed = 0;").fetchall()
 			return [x[0].strftime("%Y-%m-%d") for x in r]
 
 		def getLatestDate(prod:str) -> datetime.date:
@@ -457,6 +464,9 @@ class ToDoList:
 				return cm
 
 			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
+
+		with self.engine.begin() as connection:
+			connection.execute("UPDATE product_status SET completed = 1 WHERE downloaded = 1 AND processed = 1 AND statGen = 1;")
 
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
@@ -1730,7 +1740,7 @@ class Image:
 		product_id = idCheck("product",self.product,self.collection.lower())
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
-	def uploadStats(self,stats_tables = None) -> None:
+	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL") -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -1992,7 +2002,15 @@ class Image:
 			if stats_tables is None:
 				stats_tables = self.getStatsTables()
 			for crop in stats_tables.keys():
+				if crop_level == "BRAZIL" and crop not in crops_brazil:
+					continue
+				if crop_level == "GAUL" and crop not in crops_gaul:
+					continue
 				for admin in stats_tables[crop].keys():
+					if admin_level == "BRAZIL" and admin not in admins_brazil:
+						continue
+					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					if statsDataFrame is not None: # check if zonal_stats returned a dataframe or None
@@ -2253,7 +2271,7 @@ class ModisImage(Image):
 		return u
 
 	# override uploadStats() to use windowed read
-	def uploadStats(self,stats_tables=None) -> None:
+	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL") -> None:
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2443,7 +2461,15 @@ class ModisImage(Image):
 			#log.info(zonal_stats(self.path,self.cropMaskFiles['winterwheat'],self.adminFiles['gaul1'])['value'])
 			#return 0
 			for crop in stats_tables.keys():
+				if crop_level == "BRAZIL" and crop not in crops_brazil:
+					continue
+				if crop_level == "GAUL" and crop not in crops_gaul:
+					continue
 				for admin in stats_tables[crop].keys():
+					if admin_level == "BRAZIL" and admin not in admins_brazil:
+						continue
+					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					#return statsDataFrame
