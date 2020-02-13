@@ -179,6 +179,12 @@ try:
 except NoCredentialsError:
 	log.warning("No credentials file found. Reading directly from environment variables instead.")
 
+## checking for statscode
+
+statscodeDir = os.path.join(os.path.dirname(__file__),"statscode")
+if not os.path.exists(statscodeDir):
+	log.warning("'statscode' directory not found. This folder should be in the same directory as __init__.py, and should contain all the crop mask and admin region rasters. Image objects cannot be instantialized without it.")
+
 ## other class definitions
 
 # instance creates and stores list of pending-download files for each type (merra,chirps,swi). Note that the attribute is named merra and not merra-2
