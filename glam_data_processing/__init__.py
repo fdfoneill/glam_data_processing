@@ -472,7 +472,7 @@ class ToDoList:
 			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
 
 		with self.engine.begin() as connection:
-			connection.execute("UPDATE product_status SET completed = 1 WHERE downloaded = 1 AND processed = 1 AND statGen = 1;")
+			connection.execute("UPDATE product_status SET completed = 1 WHERE processed = 1 AND statGen = 1;")
 
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
