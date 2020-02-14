@@ -122,7 +122,7 @@ def updateData():
 			log.info(message)
 		else:
 			log.debug(message)
-	speak(f"Running with verbosity level {arg.verbose}")
+	speak(f"Running with verbosity level {args.verbose}")
 
 	## get toDoList
 	missing = glam.ToDoList()
