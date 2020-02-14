@@ -83,6 +83,10 @@ def updateData():
 		'--print_missing',
 		action='store_true',
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
+	parser.add_argument('-v',
+		'--verbose',
+		action='store_true',
+		help="Display traceback on failure")
 	args = parser.parse_args()
 	## confirm exclusivity
 	try:
@@ -152,7 +156,10 @@ def updateData():
 			except glam.UnavailableError:
 				log.info("(No file available)")
 			except:
-				log.error("(FAILED)")
+				if args.verbose:
+					log.exception("(FAILED)")
+				else:	
+					log.error("(FAILED)")
 	finally:
 		for f in glob.glob(os.path.join(tempDir,"*")):
 			os.remove(f)
