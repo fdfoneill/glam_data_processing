@@ -133,7 +133,7 @@ def updateData():
 				continue
 			if args.product and product != args.product:
 				continue
-			if args.print_missing:
+			if args.list_missing:
 				print("{0} {1}".format(*f))
 				continue
 			log.info("{0} {1}".format(*f))
