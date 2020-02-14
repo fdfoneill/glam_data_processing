@@ -91,8 +91,8 @@ def updateData():
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
 	parser.add_argument('-v',
 		'--verbose',
-		action='store_true',
-		help="Display traceback on failure")
+		action='count',
+		help="Display more messages; print traceback on failure; max -vvv")
 	args = parser.parse_args()
 
 	## confirm exclusivity
@@ -115,6 +115,15 @@ def updateData():
 			assert not args.ingest
 	except AssertionError:
 		raise glam.BadInputError("--ingest and --stats are mutually exclusive")
+
+	## verbosity stuff
+	def speak(message, cutoff = 1):
+		if args.verbose >= cutoff:
+			log.info(message)
+		else:
+			log.debug(message)
+	speak(f"Running with verbosity level {arg.verbose}")
+
 	## get toDoList
 	missing = glam.ToDoList()
 	missing.filterUnavailable()
@@ -144,56 +153,35 @@ def updateData():
 				# check that at least one file was downloaded
 				if len(paths) <1:
 					raise glam.UnavailableError("No file detected")
-				if args.verbose:
-					log.info("-downloaded")
-				else:
-					log.debug("-downloaded")
+				speak("-downloaded")
 				# iterate over file paths
 				for p in paths:
-					if args.verbose:
-						log.info(p)
-					else:
-						log.debug(p)
+					speak(p)
 					image = glam.Image(p)
 					if image.product == 'chirps':
-						if args.verbose:
-							log.info("-purging corresponding chirps-prelim product")
-						else:
-							log.debug("-purging corresponding chirps-prelim product")
+						speak("-purging corresponding chirps-prelim product")
 						try:
 							glam.purge('chirps-prelim',image.date,os.environ['glam_purge_key'])
 						except KeyError:
 							log.warning("glam_purge_key not set. Chirps preliminary product not purged.")
 					image.setStatus('downloaded',True)
-					if args.verbose:
-						log.info(f"-collection: {image.collection}")
-					else:
-						log.debug(f"-collection: {image.collection}")
+					speak(f"-collection: {image.collection}",2)
 					if not args.stats:
 						image.ingest()
 						image.setStatus('processed',True)
-						if args.verbose:
-							log.info("--ingested")
-						else:
-							log.debug("--ingested")
+						speak("--ingested")
 					if not args.ingest:
 						image.uploadStats()
 						image.setStatus('statGen',True)
-						if args.verbose:
-							log.info("--stats generated")
-						else:
-							log.debug("--stats generated")
+						speak("--stats generated")
 					os.remove(p)
-					if args.verbose:
-						log.info("--file removed")
-					else:
-						log.debug("--file removed")
+					speak("--file removed")
 			except glam.UnavailableError:
 				log.info("(No file available)")
 			except:
-				if args.verbose:
+				if args.verbose > 0:
 					log.exception("(FAILED)")
-				else:	
+				else:
 					log.error("(FAILED)")
 	finally:
 		for f in glob.glob(os.path.join(tempDir,"*")):
