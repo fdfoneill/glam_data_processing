@@ -75,6 +75,7 @@ def updateData():
 		'--product',
 		default=None,
 		required=False,
+		choices=octvi.supported_products+glam.ancillary_products,
 		help="Only update the specified product")
 	parser.add_argument("-i",
 		"--ingest",
