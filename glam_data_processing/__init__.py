@@ -80,6 +80,7 @@ from ._version import __version__
 import logging, os
 from datetime import datetime, timedelta
 logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
+#logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
@@ -102,8 +103,14 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
-admins = ["gaul1","BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
-crops = ["maize","rice","soybean","springwheat","winterwheat"]
+
+admins_gaul = ["gaul1"]
+admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
+admins = admins_gaul + admins_brazil
+
+crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat"]
+crops_brazil = []
+crops = crops_cropmonitor + crops_brazil
 
 ## decorators
 
@@ -171,6 +178,12 @@ try:
 	readCredentialsFile()
 except NoCredentialsError:
 	log.warning("No credentials file found. Reading directly from environment variables instead.")
+
+## checking for statscode
+
+statscodeDir = os.path.join(os.path.dirname(__file__),"statscode")
+if not os.path.exists(statscodeDir):
+	log.warning("'statscode' directory not found. This folder should be in the same directory as __init__.py, and should contain all the crop mask and admin region rasters. Image objects cannot be instantialized without it.")
 
 ## other class definitions
 
@@ -268,7 +281,7 @@ class ToDoList:
 		def getDbMissing(prod:str) -> list:
 			"""Return list of string dates of files in database where 'product'=={prod} and 'downloaded'==False"""
 			with self.engine.begin() as connection:
-				r = connection.execute(f"SELECT date FROM product_status WHERE product='{prod}' AND downloaded = 0;").fetchall()
+				r = connection.execute(f"SELECT date FROM product_status WHERE product='{prod}' AND completed = 0;").fetchall()
 			return [x[0].strftime("%Y-%m-%d") for x in r]
 
 		def getLatestDate(prod:str) -> datetime.date:
@@ -457,6 +470,9 @@ class ToDoList:
 				return cm
 
 			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
+
+		with self.engine.begin() as connection:
+			connection.execute("UPDATE product_status SET completed = 1 WHERE processed = 1 AND statGen = 1;")
 
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
@@ -1338,10 +1354,13 @@ class Downloader:
 		"""
 
 		## set up boto3 logger, client, and bucket name
-		s3_client = boto3.client('s3',
-			aws_access_key_id=os.environ['AWS_accessKeyId'],
-			aws_secret_access_key=os.environ['AWS_secretAccessKey']
-			)
+		try:
+			s3_client = boto3.client('s3',
+				aws_access_key_id=os.environ['AWS_accessKeyId'],
+				aws_secret_access_key=os.environ['AWS_secretAccessKey']
+				)
+		except KeyError:
+			raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'glamconfigure' or 'aws configure' on the command line.")
 		s3_bucket = 'glam-tc-data'
 
 		## define output list to be coerced to tuple and returned
@@ -1490,7 +1509,7 @@ class Image:
 			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
-		if self.product not in ["merra-2","chirps","chirps-prelim","swi"]:
+		if self.product not in ancillary_products:
 			raise BadInputError(f"Product type '{self.product}' not recognized")
 		if self.product == 'merra-2':
 			merraCollections = {'min':'Minimum','mean':'Mean','max':'Maximum'}
@@ -1634,7 +1653,7 @@ class Image:
 					aws_secret_access_key=os.environ['AWS_secretAccessKey']
 					)
 			except KeyError:
-				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found.\nUse 'aws configure' on the command line.")
+				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'aws configure' on the command line.")
 			
 			b = bucket.split("/")[0]
 			k = bucket.split("/")[1]+"/"+os.path.basename(upload_file)
@@ -1730,7 +1749,7 @@ class Image:
 		product_id = idCheck("product",self.product,self.collection.lower())
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
-	def uploadStats(self,stats_tables = None) -> None:
+	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL") -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -1742,6 +1761,19 @@ class Image:
 			If the table does not exist (table.exists==False) then it is created
 			The dataframe is uploaded to the table
 		If all stats are successfully uploaded, the function updates product_status.statGen to True
+
+		***
+
+		Parameters
+		----------
+		stats_tables:dict
+			Nested dictionary of stats table IDs. Create with getStatsTables()
+		admin_level:str
+			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
+			have statistics run. Allows for running only certain combinations.
+		crop_level:str
+			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			have statistics run. Allows for running only certain combinations.
 		"""
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -1992,7 +2024,15 @@ class Image:
 			if stats_tables is None:
 				stats_tables = self.getStatsTables()
 			for crop in stats_tables.keys():
+				if crop_level == "BRAZIL" and crop not in crops_brazil:
+					continue
+				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
+					continue
 				for admin in stats_tables[crop].keys():
+					if admin_level == "BRAZIL" and admin not in admins_brazil:
+						continue
+					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					if statsDataFrame is not None: # check if zonal_stats returned a dataframe or None
@@ -2253,7 +2293,32 @@ class ModisImage(Image):
 		return u
 
 	# override uploadStats() to use windowed read
-	def uploadStats(self,stats_tables=None) -> None:
+	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL") -> None:
+		"""
+		Calculates and uploads all statistics for the given data file to the database
+
+		Description
+		-----------
+		For each crop x admin combination, a pandas dataframe of statistics by region is created
+		These combinations are then paired up with the corresponding stats table name, as found in stats_tables
+		For each table:
+			If the table does not exist (table.exists==False) then it is created
+			The dataframe is uploaded to the table
+		If all stats are successfully uploaded, the function updates product_status.statGen to True
+
+		***
+
+		Parameters
+		----------
+		stats_tables:dict
+			Nested dictionary of stats table IDs. Create with getStatsTables()
+		admin_level:str
+			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
+			have statistics run. Allows for running only certain combinations.
+		crop_level:str
+			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			have statistics run. Allows for running only certain combinations.
+		"""
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2443,7 +2508,15 @@ class ModisImage(Image):
 			#log.info(zonal_stats(self.path,self.cropMaskFiles['winterwheat'],self.adminFiles['gaul1'])['value'])
 			#return 0
 			for crop in stats_tables.keys():
+				if crop_level == "BRAZIL" and crop not in crops_brazil:
+					continue
+				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
+					continue
 				for admin in stats_tables[crop].keys():
+					if admin_level == "BRAZIL" and admin not in admins_brazil:
+						continue
+					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					#return statsDataFrame
