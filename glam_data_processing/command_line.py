@@ -192,11 +192,10 @@ def getInfo():
 	parser = argparse.ArgumentParser(description="Get information on glam_data_processing usage and current installation")
 	parser.add_argument("-v",
 		"--version",
-		action="store_true",
-		help="Only print version number")
+		action="version",
+		help="Show glam_data_processing's version number and exit")
+	parser.version = glam.__version__
 	args = parser.parse_args()
-	if not args.version:
-		print(glam.__doc__)
-	else:
-		print("glam_data_processing")
+	
+	print(glam.__doc__)
 	print(f"Version = {glam.__version__}")
