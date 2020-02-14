@@ -71,6 +71,11 @@ def updateData():
 		"--ndvi",
 		action='store_true',
 		help="Only do NDVI data, not ancillary")
+	parser.add_argument('-p',
+		'--product',
+		default=None,
+		required=False,
+		help="Only update the specified product")
 	parser.add_argument("-i",
 		"--ingest",
 		action='store_true',
@@ -79,8 +84,8 @@ def updateData():
 		"--stats",
 		action='store_true',
 		help="Stats generation only, no ingest")
-	parser.add_argument('-p',
-		'--print_missing',
+	parser.add_argument('-l',
+		'--list_missing',
 		action='store_true',
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
 	parser.add_argument('-v',
@@ -88,14 +93,20 @@ def updateData():
 		action='store_true',
 		help="Display traceback on failure")
 	args = parser.parse_args()
+
 	## confirm exclusivity
 	try:
 		if args.ancillary:
 			assert not args.ndvi
+			assert not args.product
 		elif args.ndvi:
 			assert not args.ancillary
+			assert not args.product
+		elif args.product:
+			assert not args.ancillary
+			assert not args.ndvi
 	except AssertionError:
-		raise glam.BadInputError("--ancillary and --ndvi are mutually exclusive")
+		raise glam.BadInputError("--ancillary, --product, and --ndvi are mutually exclusive")
 	try:
 		if args.ingest:
 			assert not args.stats
@@ -119,6 +130,8 @@ def updateData():
 				continue
 			if product in glam.ancillary_products and args.ndvi:
 				continue
+			if args.product and product != args.product:
+				continue
 			if args.print_missing:
 				print("{0} {1}".format(*f))
 				continue
@@ -130,29 +143,50 @@ def updateData():
 				# check that at least one file was downloaded
 				if len(paths) <1:
 					raise glam.UnavailableError("No file detected")
-				log.debug("-downloaded")
+				if args.verbose:
+					log.info("-downloaded")
+				else:
+					log.debug("-downloaded")
 				# iterate over file paths
 				for p in paths:
-					log.debug(p)
+					if args.verbose:
+						log.info(p)
+					else:
+						log.debug(p)
 					image = glam.Image(p)
 					if image.product == 'chirps':
-						log.debug("-purging corresponding chirps-prelim product")
+						if args.verbose:
+							log.info("-purging corresponding chirps-prelim product")
+						else:
+							log.debug("-purging corresponding chirps-prelim product")
 						try:
 							glam.purge('chirps-prelim',image.date,os.environ['glam_purge_key'])
 						except KeyError:
 							log.warning("glam_purge_key not set. Chirps preliminary product not purged.")
 					image.setStatus('downloaded',True)
-					log.debug(f"-collection: {image.collection}")
+					if args.verbose:
+						log.info(f"-collection: {image.collection}")
+					else:
+						log.debug(f"-collection: {image.collection}")
 					if not args.stats:
 						image.ingest()
 						image.setStatus('processed',True)
-						log.debug("--ingested")
+						if args.verbose:
+							log.info("--ingested")
+						else:
+							log.debug("--ingested")
 					if not args.ingest:
 						image.uploadStats()
 						image.setStatus('statGen',True)
-						log.debug("--stats generated")
+						if args.verbose:
+							log.info("--stats generated")
+						else:
+							log.debug("--stats generated")
 					os.remove(p)
-					log.debug("--file removed")
+					if args.verbose:
+						log.info("--file removed")
+					else:
+						log.debug("--file removed")
 			except glam.UnavailableError:
 				log.info("(No file available)")
 			except:
