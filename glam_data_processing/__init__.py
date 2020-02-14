@@ -1354,10 +1354,13 @@ class Downloader:
 		"""
 
 		## set up boto3 logger, client, and bucket name
-		s3_client = boto3.client('s3',
-			aws_access_key_id=os.environ['AWS_accessKeyId'],
-			aws_secret_access_key=os.environ['AWS_secretAccessKey']
-			)
+		try:
+			s3_client = boto3.client('s3',
+				aws_access_key_id=os.environ['AWS_accessKeyId'],
+				aws_secret_access_key=os.environ['AWS_secretAccessKey']
+				)
+		except KeyError:
+			raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'glamconfigure' or 'aws configure' on the command line.")
 		s3_bucket = 'glam-tc-data'
 
 		## define output list to be coerced to tuple and returned
@@ -1506,7 +1509,7 @@ class Image:
 			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
-		if self.product not in ["merra-2","chirps","chirps-prelim","swi"]:
+		if self.product not in ancillary_products:
 			raise BadInputError(f"Product type '{self.product}' not recognized")
 		if self.product == 'merra-2':
 			merraCollections = {'min':'Minimum','mean':'Mean','max':'Maximum'}
@@ -1650,7 +1653,7 @@ class Image:
 					aws_secret_access_key=os.environ['AWS_secretAccessKey']
 					)
 			except KeyError:
-				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found.\nUse 'aws configure' on the command line.")
+				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'aws configure' on the command line.")
 			
 			b = bucket.split("/")[0]
 			k = bucket.split("/")[1]+"/"+os.path.basename(upload_file)

@@ -5,6 +5,7 @@ log = logging.getLogger("glam_command_line")
 
 import argparse, glob, json, octvi, sys
 import glam_data_processing as glam
+from getpass import getpass
 
 def getYesNo(message:str) -> bool:
 	cont = input(message+"[Y/N]\n")
@@ -30,9 +31,9 @@ def setCredentials():
 	if cont:
 		# get input
 		merraUsername = input("Merra-2 archive username:\n")
-		merraPassword = input("Merra-2 archive password:\n")
+		merraPassword = getpass("Merra-2 archive password:\n")
 		swiUsername = input("Copernicus online username:\n")
-		swiPassword = input("Copernicus online password:\n")
+		swiPassword = getpass("Copernicus online password:\n")
 		# use input to set environent variables
 		keys['merrausername'] = merraUsername
 		keys['merrapassword'] = merraPassword
@@ -45,10 +46,21 @@ def setCredentials():
 	if cont:
 		# get input
 		mysql_user = input("MySQL username:\n")
-		mysql_pass = input("MySQL password:\n")
+		mysql_pass = getpass("MySQL password:\n")
 		# use input to set environent variables
 		keys['glam_mysql_user'] = mysql_user
 		keys['glam_mysql_pass'] = mysql_pass
+	else:
+		pass
+	## aws
+	cont = getYesNo("Set credentials for Amazon Web Services?")
+	if cont:
+		# get input
+		awsAccess = input("AWS Access Key ID:\n")
+		awsSecret = getpass("AWS Secret Access Key:\n")
+		# use input to set environment variables
+		keys['AWS_accessKeyId'] = awsAccess
+		keys['AWS_secretAccessKey'] = awsSecret
 	else:
 		pass
 	## save output to glam_keys.json
@@ -56,6 +68,7 @@ def setCredentials():
 	if cont:
 		with open(credFile,'w') as wf:
 			wf.write(json.dumps(keys))
+		print(f"Keys saved to {credFile}")
 	else:
 		print("Keys not saved.")
 	sys.exit()
@@ -157,7 +170,7 @@ def updateData():
 				# iterate over file paths
 				for p in paths:
 					speak(p)
-					image = glam.Image(p)
+					image = glam.getImageType(p)(p)
 					if image.product == 'chirps':
 						speak("-purging corresponding chirps-prelim product")
 						try:
@@ -196,6 +209,6 @@ def getInfo():
 		help="Show glam_data_processing's version number and exit")
 	parser.version = glam.__version__
 	args = parser.parse_args()
-	
+
 	print(glam.__doc__)
 	print(f"Version = {glam.__version__}")
