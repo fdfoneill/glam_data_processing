@@ -108,9 +108,12 @@ admins_gaul = ["gaul1"]
 admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
 admins = admins_gaul + admins_brazil
 
-crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat"]
-crops_brazil = []
-crops = crops_cropmonitor + crops_brazil
+# make crops_brazil_info
+crops_brazil_info = {}
+
+crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat","cropland"]
+crops_brazil = ['2S-DFZSafraZ2013_2014', '2S-GOZSafraZ2013_2014', '2S-MAZSafraZ2013_2014', '2S-MGZSafraZ2013_2014', '2S-MSZSafraZ2013_2014', '2S-MTZSafraZ2013_2014', '2S-PIZSafraZ2013_2014', '2S-PRZSafraZ2012_2013', '2S-SPZSafraZ2013_2014', '2S-TOZSafraZ2013_2014', 'CV-DFZSafraZ2017_2018', 'CV-GOZSafraZ2014_2015', 'CV-MATOPIBAZSafraZ2013_2014', 'CV-MGZSafraZ2013_2014', 'CV-MSZSafraZ2014_2015', 'CV-MTZSafraZ2014_2015', 'CV-PRZSafraZ2013_2014', 'CV-ROZSafraZ2013_2014', 'CV-RSZSafraZ2011_2012', 'CV-SCZSafraZ2013_2014', 'CV-SPZSafraZ2014_2015']#list(crops_brazil_info.keys())
+crops = crops_cropmonitor + crops_brazil + ["nomask"]
 
 ## decorators
 
@@ -524,8 +527,10 @@ class Downloader:
 		locates and downloads requested product from source if possible, returns tuple of file paths or empty tuple on failure
 	pullFromS3(product:str,date:str,out_dir:str) -> bool:
 		locates and downloads requested product from aws S3 bucket if possible, returns False if not
+	getAllS3({product:str},{date:str}) -> list:
+		gets list of all ingested imagery that matches product and/or date provided
 	"""
-
+	# data archive credentials
 	credentials = False
 	try:
 		merraUsername = os.environ['merrausername']
@@ -535,6 +540,23 @@ class Downloader:
 		credentials = True
 	except KeyError:
 		log.warning("Data archive credentials not set. The following functionality will be unavailable:\n\tDownloader.isAvailable()\n\tDownloader.pullFromSource()\nUse 'glamconfigure' on command line to set archive credentials.")
+
+	# mysql credentials
+	noCred = None
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+		products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+		stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+	except KeyError:
+		noCred = True
 
 
 	def __repr__(self):
@@ -1423,6 +1445,49 @@ class Downloader:
 		## return tuple of file paths
 		return tuple(results)
 
+	def getAllS3(self,product=None,year=None,doy=None) -> list:
+		"""
+		Queries the database to find all imagery available on S3 that matches
+		requested product and/or date. If neither is passed, a list of all
+		imagery is returned--beware its size!
+
+		Return value is a list of tuples, in format ("PRODUCT","DATE")
+
+		***
+
+		Parameters
+		----------
+		product:str
+			Name of desired product, e.g. "MOD13Q1"
+		year:str
+			year of desired imagery
+		doy:str
+			Day of year of desired imagery
+		"""
+		if self.noCred:
+			log.warning("Database credentials not found. 'getAllS3' is unavailable. Use 'glamconfigure' on command line to set archive credentials.")
+			return None
+			
+		with self.engine.begin() as connection:
+			query = "SELECT product, year, day FROM datasets WHERE type = 'image' AND"
+			if product:
+				query += " product = '%s' AND" % (product)
+			if year:
+				year = str(year)
+				query += " year = '%s' AND" % (year)
+			if doy:
+				doy = str(doy).zfill(3)
+				query += " day = '%s' AND" % (doy)
+			query = query.strip().strip(query.strip().split(" ")[-1]).strip() + ";"
+			result = connection.execute(query).fetchall()
+		output = []
+		for t in result:
+			resultProduct, resultYear, resultDoy = t
+			resultDate = datetime.strptime(f"{resultYear}.{resultDoy}","%Y.%j").strftime("%Y-%m-%d")
+			output.append(tuple([resultProduct,resultDate]))
+		return output
+
+
 # feed a downloaded file path string into this baby's constructor, and let 'er rip. Handles all ingestion, status checks, stats generation, and stats uploading
 class Image:
 	"""
@@ -1525,6 +1590,7 @@ class Image:
 		self.admins = admins
 		self.crops = crops
 		self.cropMaskFiles = {crop:os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product}.{crop}.tif") for crop in self.crops}
+		self.cropMaskFiles['nomask'] = None
 		self.adminFiles = {level:os.path.join(os.path.dirname(os.path.abspath(__file__)),f"statscode","Regions",f"{self.product}.{level}.tif") for level in self.admins}
 
 
@@ -1772,7 +1838,7 @@ class Image:
 			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
 			have statistics run. Allows for running only certain combinations.
 		crop_level:str
-			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			One of "ALL", "NOMASK", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
 			have statistics run. Allows for running only certain combinations.
 		"""
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
@@ -1837,10 +1903,14 @@ class Image:
 
 			### Open the crop mask file, should also be a tif file
 			### No crop = 0 (no data), 1 = crop
-			cmds = gdal.Open(crop_mask_path, GA_ReadOnly)
-			#assert cmds
-			cmbandhandle = cmds.GetRasterBand(1)
-			cmnodata = cmbandhandle.GetNoDataValue()
+			if crop_mask_path:
+				cmds = gdal.Open(crop_mask_path, GA_ReadOnly)
+				#assert cmds
+				cmbandhandle = cmds.GetRasterBand(1)
+				cmnodata = cmbandhandle.GetNoDataValue()
+			else:
+				cmbandhandle=None
+				cmnodata = 0
 
 			### Open the ndvi file, should be a tif file
 			ndvids = gdal.Open(image_path, GA_ReadOnly)
@@ -1861,7 +1931,11 @@ class Image:
 
 				# windowed read of each dataset
 				adminband = adminbandhandle.ReadAsArray(xOffset, yOffset, numCols, numRows) # starts at I and J continues for nC and nR
-				cmband = cmbandhandle.ReadAsArray(xOffset, yOffset, numCols, numRows)
+				try:
+					cmband = cmbandhandle.ReadAsArray(xOffset, yOffset, numCols, numRows)
+				# if there is no crop mask, just calculate all pixels
+				except:
+					cmband = np.full((numRows,numCols),1)
 				ndviband = ndvibandhandle.ReadAsArray(xOffset, yOffset, numCols, numRows)
 				##print(adminband.shape)
 				# Loop over the unique values in the admin layer
@@ -1908,7 +1982,11 @@ class Image:
 							numCols = cols - j
 						# Process each block here
 						adminband = adminbandhandle.ReadAsArray(j, i, numCols, numRows)
-						cmband = cmbandhandle.ReadAsArray(j, i, numCols, numRows)
+						try:
+							cmband = cmbandhandle.ReadAsArray(xOffset, yOffset, numCols, numRows)
+						# if there is no crop mask, just calculate all pixels
+						except:
+							cmband = np.full((numRows,numCols),1)
 						ndviband = ndvibandhandle.ReadAsArray(j, i, numCols, numRows)
 						##print(adminband.shape)
 						# Loop over the unique values in the admin layer
@@ -2024,6 +2102,8 @@ class Image:
 			if stats_tables is None:
 				stats_tables = self.getStatsTables()
 			for crop in stats_tables.keys():
+				if crop_level == "NOMASK" and crop != "nomask":
+					continue
 				if crop_level == "BRAZIL" and crop not in crops_brazil:
 					continue
 				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
@@ -2051,11 +2131,12 @@ class Image:
 				return "Stats not generated. Database connection lost 4 times in a row. Ouch."
 
 		## update product_status if all stats uploaded
-		with self.engine.begin() as connection:
-			updateSql = f"UPDATE product_status SET statGen = True WHERE product = '{self.product}' AND date = '{self.date}';"
-			x = connection.execute(updateSql)
-			if x.rowcount == 0:
-				connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
+		if admin_level == "ALL" and crop_level == "ALL":
+			with self.engine.begin() as connection:
+				updateSql = f"UPDATE product_status SET statGen = True WHERE product = '{self.product}' AND date = '{self.date}';"
+				x = connection.execute(updateSql)
+				if x.rowcount == 0:
+					connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
 
 		return True
 
@@ -2214,7 +2295,8 @@ class ModisImage(Image):
 		self.admins = admins
 		self.crops = crops
 		#print(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))
-		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops}
+		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops if crop != "nomask"}
+		self.cropMaskFiles['nomask'] = None
 		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"{self.product[:2]}*.{level}.tif"))[0] for level in self.admins}
 
 	# override repr inheritance, correct object type
@@ -2316,7 +2398,7 @@ class ModisImage(Image):
 			One of "ALL", "GAUL", or "BRAZIL". Defines which admin levels will
 			have statistics run. Allows for running only certain combinations.
 		crop_level:str
-			One of "ALL", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
+			One of "ALL", "NOMASK", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
 			have statistics run. Allows for running only certain combinations.
 		"""
 
@@ -2355,10 +2437,15 @@ class ModisImage(Image):
 
 			### Open the crop mask file, should also be a tif file
 			### No crop = 0 (no data), 1 = crop
-			cmds = gdal.Open(crop_mask_path, GA_ReadOnly)
-			#assert cmds
-			cmbandhandle = cmds.GetRasterBand(1)
-			cmnodata = cmbandhandle.GetNoDataValue()
+			if crop_mask_path:
+				cmds = gdal.Open(crop_mask_path, GA_ReadOnly)
+				#assert cmds
+				cmbandhandle = cmds.GetRasterBand(1)
+				cmnodata = cmbandhandle.GetNoDataValue()
+			else:
+				cmds = None
+				cmbandhandle=None
+				cmnodata= 0
 
 			### Open the ndvi file, should be a tif file
 			ndvids = gdal.Open(image_path, GA_ReadOnly)
@@ -2384,7 +2471,11 @@ class ModisImage(Image):
 					blockN += 1
 					#log.debug(f"Block {blockN}")
 					adminband = adminbandhandle.ReadAsArray(j, i, numCols, numRows)
-					cmband = cmbandhandle.ReadAsArray(j, i, numCols, numRows)
+					try:
+						cmband = cmbandhandle.ReadAsArray(j, i, numCols, numRows)
+					# if no crop mask, just make an array of all 1s
+					except:
+						cmband = np.full((numRows,numCols),1)
 					ndviband = ndvibandhandle.ReadAsArray(j, i, numCols, numRows)
 
 					# Loop over the unique values in the admin layer
@@ -2508,6 +2599,8 @@ class ModisImage(Image):
 			#log.info(zonal_stats(self.path,self.cropMaskFiles['winterwheat'],self.adminFiles['gaul1'])['value'])
 			#return 0
 			for crop in stats_tables.keys():
+				if crop_level == "NOMASK" and crop != 'nomask':
+					continue
 				if crop_level == "BRAZIL" and crop not in crops_brazil:
 					continue
 				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
@@ -2532,11 +2625,12 @@ class ModisImage(Image):
 			self.uploadStats(stats_tables)
 			
 		## update product_status if all stats uploaded
-		with self.engine.begin() as connection:
-			updateSql = f"UPDATE product_status SET statGen = True WHERE product = '{self.product}' AND date = '{self.date}';"
-			x = connection.execute(updateSql)
-			if x.rowcount == 0:
-				connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
+		if admin_level == "ALL" and crop_level == "ALL":
+			with self.engine.begin() as connection:
+				updateSql = f"UPDATE product_status SET statGen = True WHERE product = '{self.product}' AND date = '{self.date}';"
+				x = connection.execute(updateSql)
+				if x.rowcount == 0:
+					connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
 
 
 ## define functions
@@ -2665,6 +2759,8 @@ def updateGlamData():
 		#date = f[1]
 		log.info("{0} {1}".format(*f))
 		try:
+			if f[0] not in ancillary_products:
+				continue
 			if not downloader.isAvailable(*f): # this should never happen
 				raise UnavailableError("No file detected")
 			paths = downloader.pullFromSource(*f,f"\\\\webtopus.iluci.org\\c$\\data\\Dan\\{f[0]}_archive")
