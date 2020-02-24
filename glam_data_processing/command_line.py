@@ -112,10 +112,15 @@ def updateData():
 		'--list_missing',
 		action='store_true',
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
+	parser.add_arugment('-u',
+		"--universal",
+		action='store_true',
+		help="Run over all files, not just those that are flagged as missing")
 	parser.add_argument('-v',
 		'--verbose',
 		action='count',
-		help="Display more messages; print traceback on failure; max -vvv")
+		default=0,
+		help="Display more messages; print traceback on failure")
 	args = parser.parse_args()
 
 	## confirm exclusivity
@@ -138,6 +143,13 @@ def updateData():
 			assert not args.ingest
 	except AssertionError:
 		raise glam.BadInputError("--ingest and --stats are mutually exclusive")
+	try:
+		if args.universal:
+			assert not args.list_missing
+		elif args.list_missing:
+			assert not args.universal
+	except AssertionError:
+		raise glam.BadInputError("--list_missing and --universal are mutually exclusive")
 
 	## verbosity stuff
 	def speak(message, cutoff = 1):
@@ -149,7 +161,8 @@ def updateData():
 
 	## get toDoList
 	missing = glam.ToDoList()
-	missing.filterUnavailable()
+	if not args.universal:
+		missing.filterUnavailable()
 	downloader = glam.Downloader()
 	tempDir = os.path.join(os.path.dirname(__file__),"temp")
 	try:
@@ -170,8 +183,6 @@ def updateData():
 				continue
 			log.info("{0} {1}".format(*f))
 			try:
-				if not downloader.isAvailable(*f):
-					raise glam.UnavailableError("No file detected")
 				paths = downloader.pullFromSource(*f,tempDir)
 				# check that at least one file was downloaded
 				if len(paths) <1:
