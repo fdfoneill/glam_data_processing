@@ -1815,7 +1815,7 @@ class Image:
 		product_id = idCheck("product",self.product,self.collection.lower())
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
-	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL") -> None:
+	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL",override_brazil_limit=False) -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -1840,6 +1840,9 @@ class Image:
 		crop_level:str
 			One of "ALL", "NOMASK", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
 			have statistics run. Allows for running only certain combinations.
+		override_brazil_limit:bool
+			If False (default), only run brazil crops for brazil regions. If True, runs brazil
+			crops for ALL regions.
 		"""
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2113,6 +2116,9 @@ class Image:
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
 						continue
+					if not override_brazil_limit:
+						if crop in crops_brazil and admin not in admins_brazil:
+							continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					if statsDataFrame is not None: # check if zonal_stats returned a dataframe or None
@@ -2375,7 +2381,7 @@ class ModisImage(Image):
 		return u
 
 	# override uploadStats() to use windowed read
-	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL") -> None:
+	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL",override_brazil_limit=False) -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -2400,6 +2406,9 @@ class ModisImage(Image):
 		crop_level:str
 			One of "ALL", "NOMASK", "CROPMONITOR", or "BRAZIL". Defines which crop masks will
 			have statistics run. Allows for running only certain combinations.
+		override_brazil_limit:bool
+			If False (default), only run brazil crops for brazil regions. If True, runs brazil
+			crops for ALL regions.
 		"""
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
@@ -2610,6 +2619,9 @@ class ModisImage(Image):
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
 						continue
+					if not override_brazil_limit:
+						if crop in crops_brazil and admin not in admins_brazil:
+							continue
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
 					#return statsDataFrame

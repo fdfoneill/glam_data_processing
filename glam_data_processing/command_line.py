@@ -90,6 +90,16 @@ def updateData():
 		required=False,
 		choices=octvi.supported_products+glam.ancillary_products,
 		help="Only update the specified product")
+	parser.add_argument("-ml",
+		"--mask_level",
+		default="ALL",
+		choices=["ALL","BRAZIL","CROPMONITOR","NOMASK"],
+		help="Run statistics for only a subset of crop masks")
+	parser.add_argument("-al",
+		"--admin_level",
+		default="ALL",
+		choices=["ALL","GAUL","BRAZIL"],
+		help="Run statistics for only a subset of administrative regions")
 	parser.add_argument("-i",
 		"--ingest",
 		action='store_true',
@@ -184,7 +194,7 @@ def updateData():
 						image.setStatus('processed',True)
 						speak("--ingested")
 					if not args.ingest:
-						image.uploadStats()
+						image.uploadStats(crop_level=args.mask_level,admin_level=args.admin_level)
 						image.setStatus('statGen',True)
 						speak("--stats generated")
 					os.remove(p)
