@@ -181,7 +181,7 @@ def updateData():
 		missing = []
 		for f in dirFiles:
 			img = glam.getImageType(f)(f)
-			missing.append((img.product,img.date,(img.path)))
+			missing.append((img.product,img.date,tuple([img.path])))
 	try:
 		for f in missing:
 			product = f[0]
