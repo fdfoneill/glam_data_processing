@@ -2301,9 +2301,9 @@ class ModisImage(Image):
 		self.admins = admins
 		self.crops = crops
 		#print(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))
-		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"{self.product[:2]}*.{crop}.tif"))[0] for crop in self.crops if crop != "nomask"}
+		self.cropMaskFiles = {crop:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Masks",f"M*D*.{crop}.tif"))[0] for crop in self.crops if crop != "nomask"}
 		self.cropMaskFiles['nomask'] = None
-		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"{self.product[:2]}*.{level}.tif"))[0] for level in self.admins}
+		self.adminFiles = {level:glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),"statscode","Regions",f"M*D*.{level}.tif"))[0] for level in self.admins}
 
 	# override repr inheritance, correct object type
 	def __repr__(self):
