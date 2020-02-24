@@ -112,7 +112,11 @@ def updateData():
 		'--list_missing',
 		action='store_true',
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
-	parser.add_arugment('-u',
+	parser.add_argument("-dir",
+		"--directory",
+		action="store",
+		help="Run over a directory of existing files, rather than checking for new data")
+	parser.add_argument('-u',
 		"--universal",
 		action='store_true',
 		help="Run over all files, not just those that are flagged as missing")
@@ -159,16 +163,25 @@ def updateData():
 			log.debug(message)
 	speak(f"Running with verbosity level {args.verbose}")
 
-	## get toDoList
-	missing = glam.ToDoList()
-	if not args.universal:
-		missing.filterUnavailable()
-	downloader = glam.Downloader()
-	tempDir = os.path.join(os.path.dirname(__file__),"temp")
-	try:
-		os.mkdir(tempDir)
-	except FileExistsError:
-		pass
+	## get toDoList or directory listing
+	# toDoList
+	if not args.directory:
+		missing = glam.ToDoList()
+		if not args.universal:
+			missing.filterUnavailable()
+		downloader = glam.Downloader()
+		tempDir = os.path.join(os.path.dirname(__file__),"temp")
+		try:
+			os.mkdir(tempDir)
+		except FileExistsError:
+			pass
+	# directory listing
+	else:
+		dirFiles = glob.glob(os.path.join(args.directory,"*.tif"))
+		missing = []
+		for f in dirFiles:
+			img = glam.getImageType(f)(f)
+			missing.append((img.product,img.date,(img.path)))
 	try:
 		for f in missing:
 			product = f[0]
@@ -183,16 +196,21 @@ def updateData():
 				continue
 			log.info("{0} {1}".format(*f))
 			try:
-				paths = downloader.pullFromSource(*f,tempDir)
-				# check that at least one file was downloaded
-				if len(paths) <1:
-					raise glam.UnavailableError("No file detected")
-				speak("-downloaded")
+				# no directory given; pull from source
+				if not args.directory:
+					paths = downloader.pullFromSource(*f,tempDir)
+					# check that at least one file was downloaded
+					if len(paths) <1:
+						raise glam.UnavailableError("No file detected")
+					speak("-downloaded")
+				# directory provided; use paths on disk
+				else:
+					paths = f[2]
 				# iterate over file paths
 				for p in paths:
 					speak(p)
 					image = glam.getImageType(p)(p)
-					if image.product == 'chirps':
+					if (image.product == 'chirps') and (not args.stats) and (not args.ingest) and (args.mask_level=="ALL") and (args.admin_level=="ALL"):
 						speak("-purging corresponding chirps-prelim product")
 						try:
 							glam.purge('chirps-prelim',image.date,os.environ['glam_purge_key'])
@@ -218,8 +236,9 @@ def updateData():
 				else:
 					log.error("(FAILED)")
 	finally:
-		for f in glob.glob(os.path.join(tempDir,"*")):
-			os.remove(f)
+		if not args.directory:
+			for f in glob.glob(os.path.join(tempDir,"*")):
+				os.remove(f)
 
 def getInfo():
 	## parse arguments
