@@ -98,6 +98,7 @@ import numpy as np
 import pandas as pd
 import terracotta as tc 
 import sqlalchemy as db
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
@@ -1555,6 +1556,7 @@ class Image:
 		mysql_db = 'modis_dev'
 
 		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		Session = sessionmaker(bind=engine)
 		metadata = db.MetaData()
 		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
@@ -1801,17 +1803,25 @@ class Image:
 							.where(self.masks.columns.mask_id == mask_id)\
 							.where(self.regions.columns.region_id == region_id)\
 							.where(self.stats.columns.year == self.year)
-			with self.engine.begin() as connection:
-				stat_result = connection.execute(stat_query).fetchall()
+			session = self.Session()
+			#with self.engine.begin() as connection:
+			try:
+				stat_result = session.execute(stat_query).fetchall()
 				try:
-					connection.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
+					session.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
 					return StatsTable(f"stats_{stat_result[0][0]}", True)
 				except IndexError:
-					newHighestID = connection.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
-					connection.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
+					newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
+					session.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
 					return StatsTable(f"stats_{newHighestID}",False)
 				except db.exc.ProgrammingError:
 					return StatsTable(f"stats_{stat_result[0][0]}",False)
+				session.commit()
+			except:
+				session.rollback()
+				raise
+			finally:
+				session.close()
 		product_id = idCheck("product",self.product,self.collection.lower())
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
