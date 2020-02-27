@@ -1787,6 +1787,7 @@ class Image:
 
 			return result[0][0]
 
+
 		@log_io
 		def getStatID(product_id, mask_id, region_id) -> collections.namedtuple:
 			"""
@@ -1797,33 +1798,45 @@ class Image:
 				exists: bool
 					whether or not the table currently exists in the database, or is the next highest ID
 			"""
+			# the query below selects column `stats_id` where the other four fields match the input
 			stat_query = db.select([self.stats.columns.stats_id,self.stats.columns.created])\
 							.select_from(self.stats.join(self.products).join(self.masks).join(self.regions))\
 							.where(self.products.columns.product_id == product_id)\
 							.where(self.masks.columns.mask_id == mask_id)\
 							.where(self.regions.columns.region_id == region_id)\
 							.where(self.stats.columns.year == self.year)
+
+			# there's been some confusion over whether to use Session or Connection objects. Still unresolved.
 			session = self.Session()
 			#with self.engine.begin() as connection:
 			try:
+				# try to get the stats_id that matches the product, crop, admin, and year
 				stat_result = session.execute(stat_query).fetchall()
-				try:
+
+				try: # check whether the given stats table already exists
 					session.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
 					return StatsTable(f"stats_{stat_result[0][0]}", True)
-				except IndexError:
-					newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
-					session.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
+
+				except IndexError: # thrown if there IS NO matching stats_id--need to create a new record in the stats table
+					#newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
+					#session.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
+					session.execute(self.stats.insert().values(product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; `stats_id` field is auto-incrementing to prevent duplicates
 					return StatsTable(f"stats_{newHighestID}",False)
-				except db.exc.ProgrammingError:
+
+				except db.exc.ProgrammingError: # thrown if the record in 'stats' exists, but the actual 'stats_EXAMPLE' table does not. Just returns a "false" in the `created` field of the StatsTable object result
 					return StatsTable(f"stats_{stat_result[0][0]}",False)
+					
 				session.commit()
 			except:
 				session.rollback()
 				raise
 			finally:
 				session.close()
+
 		product_id = idCheck("product",self.product,self.collection.lower())
+		
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
+
 
 	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL",override_brazil_limit=False) -> None:
 		"""
