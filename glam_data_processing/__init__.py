@@ -530,6 +530,8 @@ class Downloader:
 		locates and downloads requested product from aws S3 bucket if possible, returns False if not
 	getAllS3({product:str},{date:str}) -> list:
 		gets list of all ingested imagery that matches product and/or date provided
+	listMissing(directory:str) -> list:
+		given directory with some imagery in it (all of the same product), returns list of missing imagery available on S3
 	"""
 	# data archive credentials
 	credentials = False
@@ -1488,6 +1490,54 @@ class Downloader:
 			output.append(tuple([resultProduct,resultDate]))
 		return output
 
+	def listMissing(self,directory:str) -> list:
+		"""
+		Compares database listing of all available S3 imagery to files in a 
+		given directory. Returns a list of those which are on S3 but not on
+		disk ("missing files").
+
+		Return value is a list of tuples, in format ("PRODUCT","DATE")
+
+		***
+
+		Parameters
+		----------
+		directory:str
+			Full path to directory where imagery is stored. Image
+			files must be "well-named"; that is, "PROUDUCT.YYYY-MM-DD.tif"
+			for ancillary files, and "PRODUCT.YYYY.JJJ.tif" for NDVI
+			files.
+		"""
+		dir_files = glob.glob(os.path.join(directory,"*.tif"))
+		dir_products = []
+		dir_dates = []
+		for f in dir_files:
+			parts = os.path.basename(f).split(".")
+			product = parts[0]
+			try:
+				if product in octvi.supported_products:
+					date = datetime.strptime(f"{parts[1]}.{parts[2]}","%Y.%j").strftime("%Y-%m-%d")
+				else:
+					date = datetime.strptime(parts[1],"%Y-%m-%d").strftime("%Y-%m-%d") # check for correct formatting
+			except:
+				log.error(f"Date format in {f} not recognized.")
+				continue
+			dir_products.append(product)
+			dir_dates.append(date)
+		# check that there's exactly one product in the directory
+		dir_products = set(dir_products)
+		if len(dir_products) == 0:
+			log.error(f"Found no existing imagery. Use Downloader.getAllS3() to list all available imagery.")
+			return None
+		if len(dir_products) != 1:
+			log.error(f"Found more than 1 unique product ({len(dir_products)})")
+			return None
+		dir_product = dir_products.pop() # get element from dir_products
+		files_onDisk = [(dir_product,d) for d in dir_dates]
+		files_onS3 = self.getAllS3(product=dir_product)
+		files_missing = [t for t in files_onS3 if t not in files_onDisk]
+		return files_missing
+
 
 # feed a downloaded file path string into this baby's constructor, and let 'er rip. Handles all ingestion, status checks, stats generation, and stats uploading
 class Image:
@@ -1821,11 +1871,11 @@ class Image:
 					#newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
 					#session.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
 					session.execute(self.stats.insert().values(product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; `stats_id` field is auto-incrementing to prevent duplicates
-					return StatsTable(f"stats_{newHighestID}",False)
+					return getStatID(product_id,mask_id,region_id)
 
 				except db.exc.ProgrammingError: # thrown if the record in 'stats' exists, but the actual 'stats_EXAMPLE' table does not. Just returns a "false" in the `created` field of the StatsTable object result
 					return StatsTable(f"stats_{stat_result[0][0]}",False)
-					
+
 				session.commit()
 			except:
 				session.rollback()
@@ -2142,8 +2192,13 @@ class Image:
 					if not override_brazil_limit:
 						if crop in crops_brazil and admin not in admins_brazil:
 							continue
+					log.info(f"{crop} x {admin}")
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
-					statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
+					try:
+						statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
+					except RuntimeError: # no such crop or admin file
+						log.exception("Missing crop mask or admin zone raster.")
+						continue
 					if statsDataFrame is not None: # check if zonal_stats returned a dataframe or None
 						if statsTable.exists: # if the stats table already exists, append the new columns to it
 							append_to_stats_table(statsTable.name,statsDataFrame)
