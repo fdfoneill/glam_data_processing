@@ -176,7 +176,7 @@ def main():
 			for t in missing:
 				product,date=t
 				meta = f"{product}.{date}"
-				line = f"python {__file__} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
+				line = f"python {os.path.basename(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
 				if args.save_results:
 					line += " -s" 
 				line += " \n"
