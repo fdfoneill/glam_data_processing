@@ -119,13 +119,13 @@ def main():
 		if args.download_files:
 			product = meta_parts[0]
 			date = meta_parts[1]
-			print(product)
-			print(date)
-			#download_and_statsOneFile(product,date,args.file_directory,args.admin_level,args.mask_level,args.save_results)
+			#print(product)
+			#print(date)
+			download_and_statsOneFile(product,date,args.file_directory,args.admin_level,args.mask_level,args.save_results)
 		else:
 			in_file = args.META
-			print(in_file)
-			#statsOneFile(in_file, args.admin_level,args.mask_level)
+			#print(in_file)
+			statsOneFile(in_file, args.admin_level,args.mask_level)
 		sys.exit()
 		
 
@@ -188,7 +188,7 @@ def main():
 		wf.writelines(lines)
 	shell_call = ["nohup","sh","-c", f'"cat {command_file} | parallel -j {args.cores}"', "&>",args.logfile,"&"]
 	print(" ".join(shell_call))
-	#subprocess.call(shell_call)
+	subprocess.call(shell_call)
 	#os.remove(command_file)
 
 
