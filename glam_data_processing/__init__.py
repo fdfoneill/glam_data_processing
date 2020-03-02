@@ -2207,7 +2207,10 @@ class Image:
 						if statsTable.exists: # if the stats table already exists, append the new columns to it
 							append_to_stats_table(statsTable.name,statsDataFrame)
 						else: # if the stats table does not exist, create it with the stats information already in
-							create_stats_table(statsTable.name,statsDataFrame)
+							try:
+								create_stats_table(statsTable.name,statsDataFrame)
+							except db.exc.InternalError: # if the table has somehow been created between getStatsTables() and now, just append to it
+								append_to_stats_table(statsTable.name,statsDataFrame)
 					else: # if zonal_stats returned None, that means the combination of crop/admin is invalid (for example, there is no overlap beetween spring wheat and the Brazil masks)
 						continue
 		except db.exc.OperationalError: # sometimes, the database just randomly conks out. No idea why. This restarts the attempt as many times as needed. Watch out for rogue loops.
