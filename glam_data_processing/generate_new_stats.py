@@ -156,7 +156,7 @@ def main():
 	extant = getAllTiffs(args.file_directory)
 	if not args.missing_only:
 		for f in extant:
-			line = f"python {__file__} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -META '{f}'"
+			line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -META '{f}'"
 			if args.save_results:
 				line += " -s" 
 			line += "\n"
@@ -176,7 +176,7 @@ def main():
 			for t in missing:
 				product,date=t
 				meta = f"{product}.{date}"
-				line = f"python {os.path.basename(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
+				line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
 				if args.save_results:
 					line += " -s" 
 				line += " \n"
