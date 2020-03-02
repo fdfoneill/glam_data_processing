@@ -1859,7 +1859,7 @@ class Image:
 			# there's been some confusion over whether to use Session or Connection objects. Still unresolved.
 			#session = self.Session()
 			with self.engine.begin() as connection:
-			try:
+			#try:
 				# try to get the stats_id that matches the product, crop, admin, and year
 				stat_result = connection.execute(stat_query).fetchall()
 
@@ -1877,9 +1877,9 @@ class Image:
 					return StatsTable(f"stats_{stat_result[0][0]}",False)
 
 				#session.commit()
-			except:
+			#except:
 				#session.rollback()
-				raise
+				#raise
 			#finally:
 				#session.close()
 
