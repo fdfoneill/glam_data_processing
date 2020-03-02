@@ -1857,31 +1857,31 @@ class Image:
 							.where(self.stats.columns.year == self.year)
 
 			# there's been some confusion over whether to use Session or Connection objects. Still unresolved.
-			session = self.Session()
-			#with self.engine.begin() as connection:
+			#session = self.Session()
+			with self.engine.begin() as connection:
 			try:
 				# try to get the stats_id that matches the product, crop, admin, and year
-				stat_result = session.execute(stat_query).fetchall()
+				stat_result = connection.execute(stat_query).fetchall()
 
 				try: # check whether the given stats table already exists
-					session.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
+					connection.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
 					return StatsTable(f"stats_{stat_result[0][0]}", True)
 
 				except IndexError: # thrown if there IS NO matching stats_id--need to create a new record in the stats table
 					#newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
 					#session.execute(self.stats.insert().values(stats_id=newHighestID,product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; ensures that repeated method calls do not return duplicate new stats id numbers
-					session.execute(self.stats.insert().values(product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; `stats_id` field is auto-incrementing to prevent duplicates
+					connection.execute(self.stats.insert().values(product_id=product_id,mask_id=mask_id,region_id=region_id,year=self.year)) # insert record into 'stats' LUT; `stats_id` field is auto-incrementing to prevent duplicates
 					return getStatID(product_id,mask_id,region_id)
 
 				except db.exc.ProgrammingError: # thrown if the record in 'stats' exists, but the actual 'stats_EXAMPLE' table does not. Just returns a "false" in the `created` field of the StatsTable object result
 					return StatsTable(f"stats_{stat_result[0][0]}",False)
 
-				session.commit()
+				#session.commit()
 			except:
-				session.rollback()
+				#session.rollback()
 				raise
-			finally:
-				session.close()
+			#finally:
+				#session.close()
 
 		product_id = idCheck("product",self.product,self.collection.lower())
 		
