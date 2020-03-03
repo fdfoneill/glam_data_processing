@@ -15,19 +15,19 @@ except FileExistsError:
 	pass
 
 
-def statsOneFile(file_path,admin_level, mask_level) -> bool:
+def statsOneFile(file_path,admin_level, mask_level,admin_specified=None,mask_specified=None) -> bool:
 	base = os.path.basename(file_path)
 	log.info(f"Processing {base}")
 	try:
 		img = glam.getImageType(file_path)(file_path) # create Image object
-		img.uploadStats(admin_level=admin_level,crop_level=mask_level)
+		img.uploadStats(admin_level=admin_level,crop_level=mask_level,admin_specified=admin_specified,crop_specified=mask_specified)
 		return True
 	except:
 		log.exception(f"FAILED in processing {base}")
 		return False
 
 
-def download_and_statsOneFile(product,date,directory,admin_level,mask_level,save=False) -> bool:
+def download_and_statsOneFile(product,date,directory,admin_level,mask_level,admin_specified=None,mask_specified=None,save=False) -> bool:
 	"""Wrapper for statsOneFile in case downloading is required"""
 	paths = ()
 	try:
@@ -36,7 +36,7 @@ def download_and_statsOneFile(product,date,directory,admin_level,mask_level,save
 		paths = downloader.pullFromS3(product,date,directory)
 		log.info(f"Processing {product} {date}")
 		for p in paths:
-			assert statsOneFile(file_path=p,admin_level=admin_level,mask_level=mask_level)
+			assert statsOneFile(file_path=p,admin_level=admin_level,mask_level=mask_level,admin_specified=admin_specified,mask_specified=mask_specified)
 		downloader = None
 		return True
 	except:
@@ -77,12 +77,20 @@ def main():
 		"--admin_level",
 		default="ALL",
 		choices=["ALL","GAUL","BRAZIL"],
-		help="Run statistics for only a subset of administrative regions")
+		help="Run statistics for only a subset of administrative divisions")
+	parser.add_argument("-as",
+		"--admin_specified",
+		choices = glam.admins,
+		help="Run statistics for a single administrative division")
 	parser.add_argument("-ml",
 		"--mask_level",
 		default="ALL",
 		choices=["ALL","BRAZIL","CROPMONITOR","NOMASK"],
 		help="Run statistics for only a subset of crop masks")
+	parser.add_argument("-ms",
+		"--mask_specified",
+		choices=glam.crops,
+		help="Run statistics for a single crop mask")
 	parser.add_argument("-c",
 		"--cores",
 		required=True,
@@ -121,24 +129,34 @@ def main():
 			date = meta_parts[1]
 			#print(product)
 			#print(date)
-			download_and_statsOneFile(product,date,args.file_directory,args.admin_level,args.mask_level,args.save_results)
+			download_and_statsOneFile(product,date,args.file_directory,args.admin_level,args.mask_level,args.admin_specified,args.mask_specified,args.save_results)
 		else:
 			in_file = args.META
 			#print(in_file)
-			statsOneFile(in_file, args.admin_level,args.mask_level)
+			statsOneFile(in_file, args.admin_level,args.mask_level,args.admin_specified,args.mask_specified)
 		sys.exit()
 		
 
 	## confirm argument validity
+	# download_files requires product
 	try:
 		if args.download_files:
 			assert args.product
 	except AssertionError:
 		log.error("If download_files is set, a product must be specified.")
 		sys.exit()
+	# no overlap of BRAZIL crops and GAUL admins
 	if args.mask_level == "BRAZIL" and args.admin_level == "GAUL":
 		log.error("Can't generate Brazil crop stats for Gaul regions")
 		sys.exit()
+	# don't set both _level and _specified
+	if args.admin_specified and (args.admin_level != "ALL"):
+		log.error("Do not set both --admin_level and --admin_specified")
+		sys.exit()
+	if args.mask_specified and (args.mask_level != "ALL"):
+		log.error("Do not set both --mask_level and --mask_specified")
+		sys.exit()
+	# warn the user if arguments are being ignored
 	if not args.download_files:
 		try:
 			assert not args.save_results
@@ -159,6 +177,10 @@ def main():
 			line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -META '{f}'"
 			if args.save_results:
 				line += " -s" 
+			if args.admin_specified:
+					line += f" -as {args.admin_specified}"
+			if args.mask_specified:
+				line += f" -ms {args.mask_specified}"
 			line += "\n"
 			lines += line
 		
@@ -179,6 +201,10 @@ def main():
 				line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
 				if args.save_results:
 					line += " -s" 
+				if args.admin_specified:
+					line += f" -as {args.admin_specified}"
+				if args.mask_specified:
+					line += f" -ms {args.mask_specified}"
 				line += " \n"
 				lines += line 
 
