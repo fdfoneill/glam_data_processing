@@ -1892,7 +1892,7 @@ class Image:
 		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
 
-	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL",override_brazil_limit=False) -> None:
+	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL",admin_specified = None, crop_specified=None,override_brazil_limit=False) -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -1921,6 +1921,14 @@ class Image:
 			If False (default), only run brazil crops for brazil regions. If True, runs brazil
 			crops for ALL regions.
 		"""
+		# check valid arguments
+		if admin_specified:
+			if admin_level != "ALL":
+				raise BadInputError("Do not set both 'admin_specified' and 'admin_level'")
+		if crop_specified:
+			if crop_level != "ALL":
+				raise BadInputError("Do not set both 'crop_specified' and 'crop_level'")
+
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
 			Generate pandas dataframe of statistics for a given combination of image x mask x admins
@@ -2188,10 +2196,14 @@ class Image:
 					continue
 				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
 					continue
+				if crop_specified and (crop != crop_specified):
+					continue
 				for admin in stats_tables[crop].keys():
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
+					if admin_specified and (admin != admin_specified):
 						continue
 					if not override_brazil_limit:
 						if crop in crops_brazil and admin not in admins_brazil:
@@ -2466,7 +2478,7 @@ class ModisImage(Image):
 		return u
 
 	# override uploadStats() to use windowed read
-	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL",override_brazil_limit=False) -> None:
+	def uploadStats(self,stats_tables=None,admin_level="ALL",crop_level="ALL",admin_specified = None, crop_specified=None,override_brazil_limit=False) -> None:
 		"""
 		Calculates and uploads all statistics for the given data file to the database
 
@@ -2495,6 +2507,13 @@ class ModisImage(Image):
 			If False (default), only run brazil crops for brazil regions. If True, runs brazil
 			crops for ALL regions.
 		"""
+		# check valid arguments
+		if admin_specified:
+			if admin_level != "ALL":
+				raise BadInputError("Do not set both 'admin_specified' and 'admin_level'")
+		if crop_specified:
+			if crop_level != "ALL":
+				raise BadInputError("Do not set both 'crop_specified' and 'crop_level'")
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2699,10 +2718,14 @@ class ModisImage(Image):
 					continue
 				if crop_level == "CROPMONITOR" and crop not in crops_cropmonitor:
 					continue
+				if crop_specified and (crop != crop_specified):
+					continue
 				for admin in stats_tables[crop].keys():
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
+						continue
+					if admin_specified and (admin != admin_specified):
 						continue
 					if not override_brazil_limit:
 						if crop in crops_brazil and admin not in admins_brazil:
