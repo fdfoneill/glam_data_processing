@@ -67,6 +67,16 @@ def getProductDateTuple(file_path) -> tuple:
 	except:
 		log.exception(f"Failed to extract product-date tuple for {os.path.basename(file_path)}")
 
+def getUniqueFilename(directory,file_name) -> str:
+	"""given desired directory and file name, iterates through
+	integers until it finds a unique file_name_{i}.ext"""
+	base,ext=os.path.splitext(file_name)
+	outPath = os.path.join(directory,file_name)
+	i = 0
+	while os.path.exists(outPath):
+		i += 1
+		outPath = os.path.join(directory,f"{base}_{i}{ext}")
+	return outPath
 
 def main():
 	## parse arguments
@@ -167,7 +177,7 @@ def main():
 		except AssertionError:
 			log.warning("--download_files not set; --missing_only flag ignored")
 	if not args.logfile:
-		args.logfile = os.path.join(TEMP_DIR,"gns_log.txt")
+		args.logfile = getUniqueFilename(TEMP_DIR,"gns_log.txt")
 
 	lines = []
 	## perform stats on existing files
@@ -209,7 +219,8 @@ def main():
 				lines += line 
 
 			downloader=None
-	command_file = os.path.join(TEMP_DIR,"gns_commands.txt")
+	command_file = getUniqueFilename(TEMP_DIR,"gns_commands.txt")
+	
 	with open(command_file,'w') as wf:
 		wf.writelines(lines)
 	shell_call = ["nohup","sh","-c", f'"cat {command_file} | parallel -j {args.cores}"', "&>",args.logfile,"&"]
