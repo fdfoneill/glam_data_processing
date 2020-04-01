@@ -2314,7 +2314,7 @@ class Mask:
 
 		log.debug("-defining variables")
 		file_name = os.path.basename(self.path) # extracts directory of image file
-		s3_bucket = 'glam-tc-data/rasters/' # name of s3 bucket
+		s3_bucket = 'glam-tc-data/masks/' # name of s3 bucket
 		# mysql credentials
 		try:
 			mysql_user = os.environ['glam_mysql_user']
