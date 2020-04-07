@@ -281,6 +281,7 @@ class ToDoList:
 			print(f)
 
 	def refresh(self) -> None:
+		"""Updates ToDoList to include all currently missing imagery."""
 
 		def getDbMissing(prod:str) -> list:
 			"""Return list of string dates of files in database where 'product'=={prod} and 'downloaded'==False"""
@@ -500,6 +501,134 @@ class ToDoList:
 		self.mod13q1 = [f for f in self.mod13q1 if filterMachine.isAvailable("MOD13Q1",f)]
 		self.myd13q1 = [f for f in self.myd13q1 if filterMachine.isAvailable("MYD13Q1",f)]
 		self.filtered = True
+
+# find which imagery doesn't have all statistics generated
+class MissingStatistics:
+	"""Finds which ingested imagery on S3 lacks the full complement of statistics
+
+	***
+
+	Attributes
+	----------
+	engine: sqlalchemy engine object
+	products: list
+	generated: bool
+
+	Methods
+	-------
+	generate()
+	
+	"""
+	# mysql credentials
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		metadata = db.MetaData()
+		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
+		products = db.Table('products', metadata, autoload=True, autoload_with=engine)
+		stats = db.Table('stats', metadata, autoload=True, autoload_with=engine)
+		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
+
+	except KeyError:
+		log.warning("Database credentials not found. MissingStatistics objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+
+	def __init__(self, products = octvi.supported_products+ancillary_products):
+		self.generated = False
+		self.genTime = None
+		if not (isinstance(products,list) or isinstance(products,tuple)):
+			self.products = [products]
+		else:
+			self.products = products
+		self.data = {}
+		for p in self.products:
+			self.data[p] = {}#collections.defaultdict(list)
+
+	def __repr__(self):
+		return f"<Instance of MissingStatistics, data {'' if self.generated else 'not '}generated{f' {self.genTime}' if self.generated else ''}>"
+
+	def getMissingStats(self,product:str,date:str,collection="0") -> list:
+		"""Returns a list of missing region x mask stats for given product x date
+
+		Returns list of tuples of form (region, mask)
+
+		***
+
+		Parameters
+		----------
+		product: str
+			Desired imagery product
+		date: str
+			Desired imagery date in format %Y-%m-%d
+		"""
+		## format virtual file name
+		if product == "merra-2": # need special behavior for MIN, MEAN, MAX
+			if collection != "0":
+				virtual_path = f"{product}.{date}.{collection}.tif"
+			else:
+				merraCombos = []
+				for subCollection in ["min","mean","max"]:
+					merraCombos = merraCombos + self.getMissingStats(product,date,subCollection)
+				return list(set(merraCombos)) # remove any duplicates
+		elif product in ancillary_products:
+			virtual_path = f"{product}.{date}.tif"
+		else:
+			formatted_date = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			virtual_path = f"{product}.{formatted_date}.tif"
+		## create image, extract doy
+		img = getImageType(virtual_path)(virtual_path,virtual=True)
+		doy = datetime.strptime(date,"%Y-%m-%d").strftime("%j")
+		## get missing combos of admin x cropMask
+		missingCombos = []
+		statsTables = img.getStatsTables()
+		# loop over crop masks and admin names
+		for crop in statsTables.keys():
+			for admin in statsTables[crop].keys():
+				# skip combos that are deliberately omitted
+				if crop == "springwheat" and admin in ["BR_State","BR_Municipality","BR_Mesoregion","BR_Microregion"]:
+					continue
+				if crop in crops_brazil and admin == "gaul1":
+					continue
+				# if the table doesn't exist, the stats havent been generated
+				if not statsTables[crop][admin].exists:
+					missingCombos.append((admin,crop))
+				continue
+				table = statsTables[crop][admin].name
+				# try to actually select the doy--if it fails, stats haven't been generated
+				try:
+					with img.engine.begin() as con:
+						con.execute(f"SELECT `val.{doy}` FROM {table};").fetchone()
+				except (db.exc.InternalError, db.exc.ProgrammingError):
+					missingCombos.append((admin,crop))
+		return list(set(missingCombos)) # make sure to remove any duplicates
+
+
+	def generate(self) -> None:
+		"""Runs getMissingStats() on all S3 products"""
+		startTime = datetime.now()
+		merraCollections = {"Minimum":"min","Maximum":"max","Mean":"mean"}
+		allImagery = []
+		for product in self.products:
+			print(f"Acquiring imagery list: {product}             \r",end="")
+			with self.engine.begin() as connection:
+				allImagery = allImagery + connection.execute(f"SELECT product,collection,year,day FROM datasets WHERE product = '{product}' AND type = 'image';").fetchall()
+		print("Finished acquiring imagery list          ")
+		i = 0
+		l = len(allImagery)
+		for image in allImagery:
+			i += 1
+			imageProduct,imageCollection,imageYear,imageDay = image
+			imageDate = datetime.strptime(f"{imageYear}.{imageDay}","%Y.%j").strftime("%Y-%m-%d")
+			print(f"Processing: ({imageProduct}, {imageDate}{f', {imageCollection}' if imageCollection != '0' else ''}), {i} of {l}           \r",end="")
+			imageData = self.getMissingStats(imageProduct,imageDate,imageCollection)
+			if len(imageData) > 0:
+				self.data[imageProduct][imageDate] = imageData
+		self.genTime = datetime.now()
+		print(f"Finished processing all images. Data generated in {self.genTime-startTime}          ")
+		self.generated = True
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
 class Downloader:
@@ -1578,6 +1707,8 @@ class Image:
 		dictionary which links the five considered crops to their corresponding crop mask raster
 	adminFiles: dict
 		dictionary which links the admin levels to their corresponding admin zone raster
+	virtual: bool
+		Marks object as a virtual Image rather than pointing to a file on disk
 
 
 	Methods
@@ -1618,11 +1749,12 @@ class Image:
 		noCred = True
 
 
-	def __init__(self,file_path:str):
+	def __init__(self,file_path:str,virtual=False):
 		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
-		if not os.path.exists(file_path):
+		self.virtual = virtual
+		if not os.path.exists(file_path) and not virtual:
 			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
@@ -1647,7 +1779,7 @@ class Image:
 
 
 	def __repr__(self):
-		return f"<Instance of Image, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
+		return f"<Instance of Image{' (virtual)' if self.virtual else ''}, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
 
 	def __gt__(self,other):
 		"""Compare by date"""
@@ -1732,6 +1864,10 @@ class Image:
 		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
 		Returns True on success and False on failure
 		"""
+
+		if self.virtual:
+			log.error("Cannot ingest a virtual Image")
+			return False
 
 		log.debug("-defining variables")
 		file_name = os.path.basename(self.path) # extracts directory of image file
@@ -1928,6 +2064,10 @@ class Image:
 		if crop_specified:
 			if crop_level != "ALL":
 				raise BadInputError("Do not set both 'crop_specified' and 'crop_level'")
+
+		if self.virtual:
+			log.error("Cannot ingest a virtual Image")
+			return False
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
@@ -2432,7 +2572,7 @@ class AncillaryImage(Image):
 		Calculates and uploads all statistics for the given data file to the database 
 	"""
 	def __repr__(self):
-		return f"<Instance of AncillaryImage, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
+		return f"<Instance of AncillaryImage{' (virtual)' if self.virtual else''}, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
 	pass
 
 
@@ -2474,6 +2614,8 @@ class ModisImage(Image):
 		dictionary which links the five considered crops to their corresponding crop mask raster
 	adminFiles: dict
 		dictionary which links the admin levels to their corresponding admin zone raster
+	virtual: bool
+		Marks instance as virtual ModisImage that does not point to file on disk
 
 	Methods
 	-------
@@ -2510,11 +2652,12 @@ class ModisImage(Image):
 
 
 	# override init inheritance; MODIS dates are different
-	def __init__(self,file_path:str):
+	def __init__(self,file_path:str,virtual=False):
 		if self.noCred:
 			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
 		self.type = "image"
-		if not os.path.exists(file_path):
+		self.virtual=virtual
+		if not os.path.exists(file_path) and not self.virtual:
 			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
@@ -2540,6 +2683,10 @@ class ModisImage(Image):
 		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
 		Returns True on success and False on failure
 		"""
+
+		if self.virtual:
+			log.error("Cannot ingest a virtual Image")
+			return False
 
 		log.debug("-defining variables")
 		file_name = os.path.basename(self.path) # extracts directory of image file
@@ -2643,6 +2790,10 @@ class ModisImage(Image):
 		if crop_specified:
 			if crop_level != "ALL":
 				raise BadInputError("Do not set both 'crop_specified' and 'crop_level'")
+
+		if self.virtual:
+			log.error("Cannot ingest a virtual Image")
+			return False
 
 		def zonal_stats(image_path:str, crop_mask_path:str, admin_path:str) -> 'pandas.DataFrame':
 			"""
