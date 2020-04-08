@@ -544,6 +544,7 @@ class MissingStatistics:
 		else:
 			self.products = products
 		self.data = {}
+		self.unique = {}
 		for p in self.products:
 			self.data[p] = {}#collections.defaultdict(list)
 
@@ -626,9 +627,74 @@ class MissingStatistics:
 			imageData = self.getMissingStats(imageProduct,imageDate,imageCollection)
 			if len(imageData) > 0:
 				self.data[imageProduct][imageDate] = imageData
+		self.simplify()
 		self.genTime = datetime.now()
 		print(f"Finished processing all images. Data generated in {self.genTime-startTime}          ")
 		self.generated = True
+
+	def simplify(self) -> None:
+		for product in self.data.keys():
+			self.unique[product] = collections.defaultdict(int)
+			for date in self.data[product].keys():
+				for t in self.data[product][date]:
+					self.unique[product][str(t)] += 1
+
+	def rectify(self,*args,**kwargs) -> bool:
+		"""Takes directory of imagery files on disk, generates statistics
+		
+		***
+
+		Parameters
+		----------
+		directories: str
+			For each product in MissingStatistics.products, you must pass
+			a directory path for imagery of that product. This may be either
+			as positional arguments (in the listed order) or keyword arguments
+			(e.g. swi="C:/swi_files")
+
+		"""
+		positionalIndex = 0
+		try:
+			for p in self.products:
+				if p in kwargs.keys():
+					working_directory = kwargs[p]
+				else:
+					working_directory = args[positionalIndex]
+					positionalIndex += 1
+				if not os.path.exists(working_directory):
+					raise FileNotFoundError(f"Directory {working_directory} not found.")
+				log.info(f"Processing {p} in {working_directory}")
+				j = 0
+				for date in self.data[p].keys():
+					j += 1
+					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())}")
+					# create file name
+					if p in ancillary_products:
+						working_base = f"{p}.{date}.tif"
+					else:
+						working_base = f"{p}.{datetime.strptime(date,'%Y-%m-%d').strftime('%Y.%j')}.tif"
+					working_file = os.path.join(working_directory,working_base)
+					# check if it exists in working_directory
+					working_file_exists = os.path.exists(working_file)
+					# if not, download it
+					if not working_file_exists:
+						log.warning("File not found on disk; pulling from S3")
+						downloader = Downloader()
+						working_file = downloader.pullFromS3(p,date,working_directory)
+					# create Image object
+					img = getImageType(working_file)(working_file)
+					# loop over missing stats
+					i = 0
+					for t in self.data[p][date]:
+						i += 1
+						print(f"{t[0]}, {t[1]} | {i} / {len(self.data[p][date])}         \r",end='')
+						img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+					print('Finished rectifying. Done.                               ')
+		except:
+			log.exception("Failed to rectify")
+			return False
+		return True
+
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
 class Downloader:
