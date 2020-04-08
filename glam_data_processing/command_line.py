@@ -249,6 +249,5 @@ def getInfo():
 		help="Show glam_data_processing's version number and exit")
 	parser.version = glam.__version__
 	args = parser.parse_args()
-
 	print(glam.__doc__)
 	print(f"Version = {glam.__version__}")
