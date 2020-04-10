@@ -238,7 +238,7 @@ def updateData():
 						image.uploadStats(crop_level=args.mask_level,admin_level=args.admin_level)
 						image.setStatus('statGen',True)
 						speak("--stats generated")
-					if args.output_directory is not None:
+					if args.output_directory is  None:
 						os.remove(p)
 						speak("--file removed")
 			except glam.UnavailableError:
