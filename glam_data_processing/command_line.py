@@ -112,14 +112,18 @@ def updateData():
 		'--list_missing',
 		action='store_true',
 		help="Print list of missing imagery; do not download, ingest, or generate statistics")
-	parser.add_argument("-dir",
-		"--directory",
+	parser.add_argument("-id",
+		"--input_directory",
 		action="store",
 		help="Run over a directory of existing files, rather than checking for new data")
 	parser.add_argument('-u',
 		"--universal",
 		action='store_true',
 		help="Run over all files, not just those that are flagged as missing")
+	parser.add_argument('-od',
+		"--output_directory",
+		default=None,
+		help="Save downloaded files to a directory on disk rather than deleting them.")
 	parser.add_argument('-v',
 		'--verbose',
 		action='count',
@@ -154,6 +158,8 @@ def updateData():
 			assert not args.universal
 	except AssertionError:
 		raise glam.BadInputError("--list_missing and --universal are mutually exclusive")
+	if args.output_directory is not None and args.product is None:
+		raise glam.BadInputError("Use of --output_directory requires that --product be set")
 
 	## verbosity stuff
 	def speak(message, cutoff = 1):
@@ -165,19 +171,22 @@ def updateData():
 
 	## get toDoList or directory listing
 	# toDoList
-	if not args.directory:
+	if not args.input_directory:
 		missing = glam.ToDoList()
 		if not args.universal:
 			missing.filterUnavailable()
 		downloader = glam.Downloader()
-		tempDir = os.path.join(os.path.dirname(__file__),"temp")
+		if args.output_directory is not None:
+			tempDir = args.output_directory
+		else:
+			tempDir = os.path.join(os.path.dirname(__file__),"temp")
 		try:
 			os.mkdir(tempDir)
 		except FileExistsError:
 			pass
 	# directory listing
 	else:
-		dirFiles = glob.glob(os.path.join(args.directory,"*.tif"))
+		dirFiles = glob.glob(os.path.join(args.input_directory,"*.tif"))
 		missing = []
 		for f in dirFiles:
 			img = glam.getImageType(f)(f)
@@ -197,7 +206,7 @@ def updateData():
 			log.info("{0} {1}".format(*f))
 			try:
 				# no directory given; pull from source
-				if not args.directory:
+				if not args.input_directory:
 					paths = downloader.pullFromSource(*f,tempDir)
 					# check that at least one file was downloaded
 					if len(paths) <1:
@@ -236,7 +245,7 @@ def updateData():
 				else:
 					log.error("(FAILED)")
 	finally:
-		if not args.directory:
+		if not args.input_directory and args.output_directory is None:
 			for f in glob.glob(os.path.join(tempDir,"*")):
 				os.remove(f)
 
