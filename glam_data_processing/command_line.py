@@ -268,16 +268,25 @@ def fillArchive():
 	parser = argparse.ArgumentParser(description="pull any missing files from S3 to local archive")
 	parser.add_argument("directory",
 		help="Path to directory where files of given product are stored")
+	parser.add_argument("-l",
+		"--list_missing",
+		action='store_true',
+		help="List missing files and exit without downloading")
 	args = parser.parse_args()
 	downloader = glam.Downloader()
 	missing = downloader.listMissing(args.directory)
 	l = len([t for t in missing])
-	i = 0
-	for t in missing:
-		i += 1
-		log.info(f"Pulling {t} | {i} of {l}")
-		downloader.pullFromS3(*t,args.directory)
-	log.info(f"Done. {args.directory} is up-to-date with S3.")
+	if args.list_missing:
+		for t in missing:
+			print(t)
+		log.info("Done. Missing files not downloaded.")
+	else:
+		i = 0
+		for t in missing:
+			i += 1
+			log.info(f"Pulling {t} | {i} of {l}")
+			downloader.pullFromS3(*t,args.directory)
+		log.info(f"Done. {args.directory} is up-to-date with S3.")
 
 
 def getInfo():
