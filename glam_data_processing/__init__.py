@@ -667,6 +667,7 @@ class MissingStatistics:
 				j = 0
 				for date in self.data[p].keys():
 					j += 1
+					startTime = datetime.now()
 					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())}")
 					# create file name
 					if p in ancillary_products:
@@ -689,7 +690,8 @@ class MissingStatistics:
 						i += 1
 						print(f"{t[0]}, {t[1]} | {i} / {len(self.data[p][date])}         \r",end='')
 						img.uploadStats(admin_specified=t[0],crop_specified=t[1])
-					print('Finished rectifying. Done.                               ')
+					endTime = datetime.now()
+					print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 		except:
 			log.exception("Failed to rectify")
 			return False

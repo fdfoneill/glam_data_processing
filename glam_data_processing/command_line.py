@@ -192,7 +192,10 @@ def updateData():
 			img = glam.getImageType(f)(f)
 			missing.append((img.product,img.date,tuple([img.path])))
 	try:
+		j = 0
+		l = len([f for f in missing])
 		for f in missing:
+			j += 1
 			product = f[0]
 			if product in octvi.supported_products and args.ancillary:
 				continue
@@ -203,7 +206,7 @@ def updateData():
 			if args.list_missing:
 				print("{0} {1}".format(*f))
 				continue
-			log.info("{0} {1}".format(*f))
+			log.info("{0} {1}, {2} of {3}".format(*f,j,l))
 			try:
 				# no directory given; pull from source
 				if not args.input_directory:
@@ -235,8 +238,9 @@ def updateData():
 						image.uploadStats(crop_level=args.mask_level,admin_level=args.admin_level)
 						image.setStatus('statGen',True)
 						speak("--stats generated")
-					os.remove(p)
-					speak("--file removed")
+					if args.output_directory is not None:
+						os.remove(p)
+						speak("--file removed")
 			except glam.UnavailableError:
 				log.info("(No file available)")
 			except:
@@ -248,6 +252,19 @@ def updateData():
 		if not args.input_directory and args.output_directory is None:
 			for f in glob.glob(os.path.join(tempDir,"*")):
 				os.remove(f)
+
+def rectifyStats():
+	parser = argparse.ArgumentParser(description="Backfill any missing statistics to database")
+	parser.add_argument("-p",
+		"--product",
+		help="Which product to rectify")
+	parser.add_argument("-d",
+		"--directory",
+		help="Path to directory where files of given product are stored")
+	args = parser.parse_args()
+
+def fillArchive():
+	pass
 
 def getInfo():
 	## parse arguments
