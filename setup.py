@@ -46,7 +46,8 @@ setup(name='glam_data_processing',
 				'glamconfigure=glam_data_processing.command_line:setCredentials',
 				'glamupdatedata=glam_data_processing.command_line:updateData',
 				'glaminfo=glam_data_processing.command_line:getInfo',
-				'glamnewstats=glam_data_processing.generate_new_stats:main'
+				'glamnewstats=glam_data_processing.generate_new_stats:main',
+				'glamfillarchive=glam_data_processing.command_line:fillArchive'
 				]
 			}
 		)
