@@ -3216,7 +3216,7 @@ def purge(product, date, auth_key) -> bool:
 # full process of finding missing files, downloading them from source, uploading them to S3+database, and generating statistics
 def updateGlamData():
 	"""
-	This function finds all missing GLAM data (currently ancillary files only) and attempts to fully ingest and process each one
+	This function finds all missing GLAM data and attempts to fully ingest and process each one
 	"""
 	## create necessary objects
 	downloader = Downloader() # downloader object
