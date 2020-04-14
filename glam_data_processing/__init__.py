@@ -607,6 +607,8 @@ class MissingStatistics:
 						con.execute(f"SELECT `val.{doy}` FROM {table};").fetchone()
 				except (db.exc.InternalError, db.exc.ProgrammingError):
 					missingCombos.append((admin,crop))
+		if len(missingCombos) == 0:
+			img.setStatus("statGen",True)
 		return list(set(missingCombos)) # make sure to remove any duplicates
 
 
@@ -671,7 +673,7 @@ class MissingStatistics:
 				for date in self.data[p].keys():
 					j += 1
 					startTime = datetime.now()
-					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())}")
+					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())})")
 					# create file name
 					if p in ancillary_products:
 						working_base = f"{p}.{date}.tif"
@@ -693,6 +695,7 @@ class MissingStatistics:
 						i += 1
 						print(f"{t[0]}, {t[1]} | {i} / {len(self.data[p][date])}         \r",end='')
 						img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+					img.setStatus("statGen",True)
 					endTime = datetime.now()
 					print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 		except:
