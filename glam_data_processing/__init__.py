@@ -516,7 +516,10 @@ class MissingStatistics:
 
 	Methods
 	-------
+	getMissingStats(product:str,date:str,collection="0")
 	generate()
+	simplify()
+	rectify()
 	
 	"""
 	# mysql credentials
@@ -581,7 +584,7 @@ class MissingStatistics:
 			virtual_path = f"{product}.{formatted_date}.tif"
 		## create image, extract doy
 		img = getImageType(virtual_path)(virtual_path,virtual=True)
-		doy = datetime.strptime(date,"%Y-%m-%d").strftime("%j")
+		doy = img.doy
 		## get missing combos of admin x cropMask
 		missingCombos = []
 		statsTables = img.getStatsTables()
@@ -596,7 +599,7 @@ class MissingStatistics:
 				# if the table doesn't exist, the stats havent been generated
 				if not statsTables[crop][admin].exists:
 					missingCombos.append((admin,crop))
-				continue
+					continue
 				table = statsTables[crop][admin].name
 				# try to actually select the doy--if it fails, stats haven't been generated
 				try:

@@ -261,8 +261,22 @@ def rectifyStats():
 	parser.add_argument("-d",
 		"--directory",
 		help="Path to directory where files of given product are stored")
+	parser.add_argument("-l",
+		"--list_missing",
+		help="List files that have missing statistics, but do not rectify")
 	args = parser.parse_args()
-	pass
+	missingStats = glam.MissingStatistics(args.product)
+	log.info("Fetching missing stats")
+	missingStats.generate()
+	if args.list_missing:
+		for k in missingStats.data.keys():
+			nMissing = len(missingStats.data[k])
+			print(f"{args.product}, {k} | Missing {nMissing} tables")
+		log.info("Done. No missing stats have been rectified")
+		sys.exit()
+	log.info("Rectifying all missing tables")
+	missingStats.rectify(args.directory)
+	log.info(f"Done. All missing stats for {args.product} have been rectified")
 
 def fillArchive():
 	parser = argparse.ArgumentParser(description="pull any missing files from S3 to local archive")
