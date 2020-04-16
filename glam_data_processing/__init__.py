@@ -116,6 +116,10 @@ crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat","cropl
 crops_brazil = ['2S-DFZSafraZ2013_2014', '2S-GOZSafraZ2013_2014', '2S-MAZSafraZ2013_2014', '2S-MGZSafraZ2013_2014', '2S-MSZSafraZ2013_2014', '2S-MTZSafraZ2013_2014', '2S-PIZSafraZ2013_2014', '2S-PRZSafraZ2012_2013', '2S-SPZSafraZ2013_2014', '2S-TOZSafraZ2013_2014', 'CV-DFZSafraZ2017_2018', 'CV-GOZSafraZ2014_2015', 'CV-MATOPIBAZSafraZ2013_2014', 'CV-MGZSafraZ2013_2014', 'CV-MSZSafraZ2014_2015', 'CV-MTZSafraZ2014_2015', 'CV-PRZSafraZ2013_2014', 'CV-ROZSafraZ2013_2014', 'CV-RSZSafraZ2011_2012', 'CV-SCZSafraZ2013_2014', 'CV-SPZSafraZ2014_2015']#list(crops_brazil_info.keys())
 crops = crops_cropmonitor + crops_brazil + ["nomask"]
 
+## rds endpoint
+
+endpoint = "glam-production.c1khdx2rzffa.us-east-1.rds.amazonaws.com"
+
 ## decorators
 
 def log_io(func):
@@ -241,7 +245,7 @@ class ToDoList:
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 		metadata = db.MetaData()
 		product_status = db.Table('product_status',metadata,autoload=True,autoload_with=engine)
 
@@ -528,7 +532,7 @@ class MissingStatistics:
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 		metadata = db.MetaData()
 		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
@@ -571,8 +575,9 @@ class MissingStatistics:
 		## format virtual file name
 		if product == "merra-2": # need special behavior for MIN, MEAN, MAX
 			if collection != "0":
-				virtual_path = f"{product}.{date}.{collection}.tif"
-			else:
+				subCollection = {"Minimum":"min","Maximum":"max","Mean":"mean"}.get(collection)
+				virtual_path = f"{product}.{date}.{subCollection}.tif"
+			else: # recursively generate all three and exit
 				merraCombos = []
 				for subCollection in ["min","mean","max"]:
 					merraCombos = merraCombos + self.getMissingStats(product,date,subCollection)
@@ -754,7 +759,7 @@ class Downloader:
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 		metadata = db.MetaData()
 		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 		regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
@@ -1810,7 +1815,7 @@ class Image:
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 		Session = sessionmaker(bind=engine)
 		metadata = db.MetaData()
 		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
@@ -2492,7 +2497,7 @@ class Mask:
 		mysql_pass = os.environ['glam_mysql_pass']
 		mysql_db = 'modis_dev'
 
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 		Session = sessionmaker(bind=engine)
 		metadata = db.MetaData()
 		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
@@ -2716,7 +2721,7 @@ class ModisImage(Image):
 		#mysql_db = 'modis_dev'
 	#except KeyError:
 		#log.warning("Database credentials not found. ModisImage objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
-	#engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+	#engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 	#metadata = db.MetaData()
 	#masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
 	#regions = db.Table('regions', metadata, autoload=True, autoload_with=engine)
@@ -3163,7 +3168,7 @@ def purge(product, date, auth_key) -> bool:
 
 	else:
 		# setup
-		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com/{mysql_db}')
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
 
 		# pull file to disk to get information
 		downloader = Downloader()
