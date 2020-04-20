@@ -663,6 +663,29 @@ class MissingStatistics:
 			(e.g. swi="C:/swi_files")
 
 		"""
+
+		def fillFile(file_path,combo_tuple_list) -> bool:
+			# check if it exists in working_directory
+			working_file_exists = os.path.exists(file_path)
+			# if not, download it
+			if not working_file_exists:
+				log.warning("File not found on disk; pulling from S3")
+				downloader = Downloader()
+				file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
+			# create Image object
+			img = getImageType(file_path)(file_path)
+			# loop over missing stats
+			i = 0
+			for t in combo_tuple_list:
+				i += 1
+				print(f"{t[0]}, {t[1]} | {i} / {len(combo_tuple_list)}         \r",end='')
+				img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+			img.setStatus("statGen",True)
+			return True
+
+		if len(args)+len(kwargs.keys()) != len(self.products):
+			raise BadInputError(f"Number of directory arguments does not match number of products. Please pass exactly {len(self.products)} directory paths to the rectify() method.")
+
 		positionalIndex = 0
 		try:
 			for p in self.products:
@@ -680,27 +703,38 @@ class MissingStatistics:
 					startTime = datetime.now()
 					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())})")
 					# create file name
-					if p in ancillary_products:
+					if p == 'merra-2':
+						for col in ['min','max','mean']:
+							working_base = f"{p}.{date}.{col}.tif"
+							working_file = os.path.join(working_directory,working_base)
+							if not fillFile(working_file,self.data[p][date]):
+								return False
+						endTime = datetime.now()
+						print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+						return True
+					elif p in ancillary_products:
 						working_base = f"{p}.{date}.tif"
 					else:
 						working_base = f"{p}.{datetime.strptime(date,'%Y-%m-%d').strftime('%Y.%j')}.tif"
 					working_file = os.path.join(working_directory,working_base)
-					# check if it exists in working_directory
-					working_file_exists = os.path.exists(working_file)
-					# if not, download it
-					if not working_file_exists:
-						log.warning("File not found on disk; pulling from S3")
-						downloader = Downloader()
-						working_file = downloader.pullFromS3(p,date,working_directory)
-					# create Image object
-					img = getImageType(working_file)(working_file)
-					# loop over missing stats
-					i = 0
-					for t in self.data[p][date]:
-						i += 1
-						print(f"{t[0]}, {t[1]} | {i} / {len(self.data[p][date])}         \r",end='')
-						img.uploadStats(admin_specified=t[0],crop_specified=t[1])
-					img.setStatus("statGen",True)
+					if not fillFile(working_file,self.data[p][date]):
+						return False
+					# # check if it exists in working_directory
+					# working_file_exists = os.path.exists(working_file)
+					# # if not, download it
+					# if not working_file_exists:
+					# 	log.warning("File not found on disk; pulling from S3")
+					# 	downloader = Downloader()
+					# 	working_file = downloader.pullFromS3(p,date,working_directory)
+					# # create Image object
+					# img = getImageType(working_file)(working_file)
+					# # loop over missing stats
+					# i = 0
+					# for t in self.data[p][date]:
+					# 	i += 1
+					# 	print(f"{t[0]}, {t[1]} | {i} / {len(self.data[p][date])}         \r",end='')
+					# 	img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+					# img.setStatus("statGen",True)
 					endTime = datetime.now()
 					print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 		except:
@@ -1959,7 +1993,8 @@ class Image:
 		except KeyError:
 			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
-		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
+		#rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
+		rds_endpoint = endpoint
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
 
 		## update database
@@ -2779,7 +2814,8 @@ class ModisImage(Image):
 			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
 		mysql_db = 'modis_dev'
-		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
+		#rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
+		rds_endpoint = endpoint
 		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
 
 		## update database
