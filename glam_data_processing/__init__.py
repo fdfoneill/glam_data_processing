@@ -719,7 +719,7 @@ class MissingStatistics:
 							if not fillFile(working_file,self.data[p][date]):
 								return False
 						endTime = datetime.now()
-						print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+						log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 						continue
 					elif p in ancillary_products:
 						working_base = f"{p}.{date}.tif"
@@ -745,7 +745,7 @@ class MissingStatistics:
 					# 	img.uploadStats(admin_specified=t[0],crop_specified=t[1])
 					# img.setStatus("statGen",True)
 					endTime = datetime.now()
-					print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+					log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 		except:
 			log.exception("Failed to rectify")
 			return False
