@@ -517,6 +517,9 @@ class MissingStatistics:
 	engine: sqlalchemy engine object
 	products: list
 	generated: bool
+	data
+	unique
+	genTime
 
 	Methods
 	-------
@@ -665,23 +668,27 @@ class MissingStatistics:
 		"""
 
 		def fillFile(file_path,combo_tuple_list) -> bool:
-			# check if it exists in working_directory
-			working_file_exists = os.path.exists(file_path)
-			# if not, download it
-			if not working_file_exists:
-				log.warning("File not found on disk; pulling from S3")
-				downloader = Downloader()
-				file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
-			# create Image object
-			img = getImageType(file_path)(file_path)
-			# loop over missing stats
-			i = 0
-			for t in combo_tuple_list:
-				i += 1
-				print(f"{t[0]}, {t[1]} | {i} / {len(combo_tuple_list)}         \r",end='')
-				img.uploadStats(admin_specified=t[0],crop_specified=t[1])
-			img.setStatus("statGen",True)
-			return True
+			try:
+				# check if it exists in working_directory
+				working_file_exists = os.path.exists(file_path)
+				# if not, download it
+				if not working_file_exists:
+					log.warning("File not found on disk; pulling from S3")
+					downloader = Downloader()
+					file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
+				# create Image object
+				img = getImageType(file_path)(file_path)
+				# loop over missing stats
+				i = 0
+				for t in combo_tuple_list:
+					i += 1
+					print(f"{t[0]}, {t[1]} | {i} / {len(combo_tuple_list)}         \r",end='')
+					img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+				img.setStatus("statGen",True)
+				return True
+			except:
+				log.exception("Error in fillFile()")
+				return False
 
 		if len(args)+len(kwargs.keys()) != len(self.products):
 			raise BadInputError(f"Number of directory arguments does not match number of products. Please pass exactly {len(self.products)} directory paths to the rectify() method.")
@@ -698,7 +705,9 @@ class MissingStatistics:
 					raise FileNotFoundError(f"Directory {working_directory} not found.")
 				log.info(f"Processing {p} in {working_directory}")
 				j = 0
-				for date in self.data[p].keys():
+				dates = list(self.data[p].keys())
+				dates.reverse()
+				for date in dates:
 					j += 1
 					startTime = datetime.now()
 					log.info(f"{p} x {date} (file {j} of {len(self.data[p].keys())})")
@@ -711,7 +720,7 @@ class MissingStatistics:
 								return False
 						endTime = datetime.now()
 						print(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
-						return True
+						continue
 					elif p in ancillary_products:
 						working_base = f"{p}.{date}.tif"
 					else:
