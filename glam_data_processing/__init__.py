@@ -2276,22 +2276,26 @@ class Image:
 
 			def getValidWindow(dataset,bandhandle,nodata_value) -> "Tuple of (xmin,ymin,xmax,ymax)":
 				arr = BandReadAsArray(bandhandle)
-				for i in range(0,dataset.RasterYSize,1):
-					if not np.all(arr[i,:]==nodata_value):
-						ymax = i
-						break
-				for j in range(0,dataset.RasterXSize,1):
-					if not np.all(arr[:,j]==nodata_value):
-						xmax = j
-						break
-				for i in range(dataset.RasterYSize-1,-1,-1):
-					if not np.all(arr[i,:]==nodata_value):
-						ymin = i
-						break
-				for j in range(dataset.RasterXSize-1,-1,-1):
-					if not np.all(arr[:,j]==nodata_value):
-						xmin=j
-						break
+				rows = np.any(arr, axis=1)
+				cols = np.any(arr, axis=0)
+				ymin, ymax = np.where(rows)[0][[0, -1]]
+				xmin, xmax = np.where(cols)[0][[0, -1]]
+				# for i in range(0,dataset.RasterYSize,1):
+				# 	if not np.all(arr[i,:]==nodata_value):
+				# 		ymax = i
+				# 		break
+				# for j in range(0,dataset.RasterXSize,1):
+				# 	if not np.all(arr[:,j]==nodata_value):
+				# 		xmax = j
+				# 		break
+				# for i in range(dataset.RasterYSize-1,-1,-1):
+				# 	if not np.all(arr[i,:]==nodata_value):
+				# 		ymin = i
+				# 		break
+				# for j in range(dataset.RasterXSize-1,-1,-1):
+				# 	if not np.all(arr[:,j]==nodata_value):
+				# 		xmin=j
+				# 		break
 				return (xmin,ymin,xmax,ymax)
 			
 			xBSize = 256
