@@ -85,7 +85,7 @@ log = logging.getLogger(__name__)
 #log.info(f"{os.path.basename(__file__)} started {datetime.today()}")
 
 ## import modules
-import sys, glob, gdal, boto3, hashlib, json, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
+import sys, glob, gdal, boto3, hashlib, json, math, gzip, multiprocessing, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from gdalnumeric import *
@@ -527,6 +527,9 @@ class MissingStatistics:
 	generate()
 	simplify()
 	rectify()
+	fillFile():
+		takes a file and list of missing combos. Rectifies
+		each missing combo for that file.
 	
 	"""
 	# mysql credentials
@@ -664,38 +667,28 @@ class MissingStatistics:
 			a directory path for imagery of that product. This may be either
 			as positional arguments (in the listed order) or keyword arguments
 			(e.g. swi="C:/swi_files")
-
+		parallel: bool
+			Whether to split up the files to be rectified and throw them into
+			parallel. Default False.
+		cluster: bool
+			Whether the code is running on the GEOG cluster, which restricts
+			the number of cores available. Default False.
 		"""
 
-		def fillFile(file_path,combo_tuple_list) -> bool:
-			try:
-				# check if it exists in working_directory
-				working_file_exists = os.path.exists(file_path)
-				# if not, download it
-				if not working_file_exists:
-					log.warning("File not found on disk; pulling from S3")
-					downloader = Downloader()
-					file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
-				# create Image object
-				img = getImageType(file_path)(file_path)
-				# loop over missing stats
-				i = 0
-				for t in combo_tuple_list:
-					i += 1
-					print(f"{t[0]}, {t[1]} | {i} / {len(combo_tuple_list)}         \r",end='')
-					img.uploadStats(admin_specified=t[0],crop_specified=t[1])
-				img.setStatus("statGen",True)
-				return True
-			except:
-				log.exception("Error in fillFile()")
-				return False
+		
 
-		if len(args)+len(kwargs.keys()) != len(self.products):
-			raise BadInputError(f"Number of directory arguments does not match number of products. Please pass exactly {len(self.products)} directory paths to the rectify() method.")
-
+		#if len(args)+len(kwargs.keys()) != len(self.products):
+			#raise BadInputError(f"Number of directory arguments does not match number of products. Please pass exactly {len(self.products)} directory paths to the rectify() method.")
+		parallel = kwargs.get("parallel",False)
+		cluster = kwargs.get("cluster",False)
+		#print((parallel,cluster))
+		if parallel:
+			parallel_args = []
 		positionalIndex = 0
 		try:
 			for p in self.products:
+				fileNo = 1
+				fileCount= len(self.data[p].keys())
 				if p in kwargs.keys():
 					working_directory = kwargs[p]
 				else:
@@ -716,18 +709,27 @@ class MissingStatistics:
 						for col in ['min','max','mean']:
 							working_base = f"{p}.{date}.{col}.tif"
 							working_file = os.path.join(working_directory,working_base)
-							if not fillFile(working_file,self.data[p][date]):
-								return False
+							if parallel:
+								parallel_args.append((working_file,self.data[p][date],True,(fileNo,fileCount)))
+								fileNo += 1
+							else:
+								if not self.fillFile(working_file,self.data[p][date]):
+									return False
 						endTime = datetime.now()
-						log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+						if not parallel:
+							log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 						continue
 					elif p in ancillary_products:
 						working_base = f"{p}.{date}.tif"
 					else:
 						working_base = f"{p}.{datetime.strptime(date,'%Y-%m-%d').strftime('%Y.%j')}.tif"
 					working_file = os.path.join(working_directory,working_base)
-					if not fillFile(working_file,self.data[p][date]):
-						return False
+					if parallel:
+						parallel_args.append((working_file,self.data[p][date],True,(fileNo,fileCount)))
+						fileNo += 1
+					else:
+						if not self.fillFile(working_file,self.data[p][date]):
+							return False
 					# # check if it exists in working_directory
 					# working_file_exists = os.path.exists(working_file)
 					# # if not, download it
@@ -745,12 +747,66 @@ class MissingStatistics:
 					# 	img.uploadStats(admin_specified=t[0],crop_specified=t[1])
 					# img.setStatus("statGen",True)
 					endTime = datetime.now()
-					log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+					if not parallel:
+						log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
+			if parallel:
+				# print(parallel_args[0])
+				# import pickle
+				# print(pickle.dumps(parallel_args[0]))
+				# return False
+				if not cluster:
+					n_cores = math.floor(multiprocessing.cpu_count()*0.8)
+				else:
+					n_cores = math.floor(multiprocessing.cpu_count()/3)
+				log.info(f"Rectifying files in parallel over {n_cores} cores")
+				with multiprocessing.Pool(processes=n_cores) as pool:
+					pool.starmap(parallel_fillFile,parallel_args)
 		except:
 			log.exception("Failed to rectify")
 			return False
 		return True
 
+
+	def fillFile(file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) -> bool:
+		startTime = datetime.now()
+		if speak:
+			# get raw name and log start
+			raw_name = os.path.splitext(os.path.basename(file_path))[0]
+			log.info(f"{raw_name} (file {count_tuple[0]} of {count_tuple[1]})")
+		try:
+			# check if it exists in working_directory
+			working_file_exists = os.path.exists(file_path)
+			# if not, download it
+			if not working_file_exists:
+				log.warning("File not found on disk; pulling from S3")
+				downloader = Downloader()
+				parts=os.path.basename(file_path).split(".")
+				p = parts[0]
+				if p in ancillary_products:
+					date = parts[1]
+				elif p in octvi.supported_products:
+					date = datetime.strptime(f"{parts[1]}.{parts[2]}","%Y.%j").strftime("%Y-%m-%d")
+				else:
+					raise BadInputError(f"Product {p} not recognized")
+				file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
+			working_dir = os.path.dirname(file_path)
+			# create Image object
+			img = getImageType(file_path)(file_path)
+			# loop over missing stats
+			i = 0
+			for t in combo_tuple_list:
+				i += 1
+				print(f"{t[0]}, {t[1]} | {i} / {len(combo_tuple_list)}         \r",end='')
+				img.uploadStats(admin_specified=t[0],crop_specified=t[1])
+			img.setStatus("statGen",True)
+			return True
+		except:
+			log.exception("Error in fillFile()")
+			return False
+		finally:
+			endTime = datetime.now()
+			if speak:
+				log.info(f'Finished rectifying {raw_name} in {endTime-startTime}. Done.                               ')
 
 # only two methods, but they do it all. Pull files from either the S3 bucket or the source archives
 class Downloader:
@@ -3161,6 +3217,13 @@ class ModisImage(Image):
 
 
 ## define functions
+
+def parallel_fillFile(file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) -> bool:
+	"""Multiprocessing hates object-oriented programming,
+	so the parallel version of MissingStatistics.rectify()
+	has to have this function defined at the top level. 
+	"""
+	return MissingStatistics.fillFile(file_path,combo_tuple_list,speak,count_tuple)
 
 def getImageType(in_path:str) -> Image:
 	"""
