@@ -767,7 +767,7 @@ class MissingStatistics:
 		return True
 
 
-	def fillFile(file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) -> bool:
+	def fillFile(self,file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) -> bool:
 		startTime = datetime.now()
 		if speak:
 			# get raw name and log start
