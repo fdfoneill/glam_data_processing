@@ -210,11 +210,24 @@ def updateData():
 			try:
 				# no directory given; pull from source
 				if not args.input_directory:
-					paths = downloader.pullFromSource(*f,tempDir)
-					# check that at least one file was downloaded
-					if len(paths) <1:
-						raise glam.UnavailableError("No file detected")
-					speak("-downloaded")
+					if product in octvi.supported_products:
+						pathSize = 0
+						tries = 1
+						while pathSize < 1000000000:
+							if tries > 3:
+								raise glam.UnavailableError("File size less than 1GB after 3 tries")
+							paths = downloader.pullFromSource(*f,tempDir)
+							try:
+								pathsize = os.path.getsize(paths[0])
+							except IndexError:
+								raise glam.UnavailableError("No file detected")
+							tries += 1
+					else:
+						paths = downloader.pullFromSource(*f,tempDir)
+						# check that at least one file was downloaded
+						if len(paths) <1:
+							raise glam.UnavailableError("No file detected")
+						speak("-downloaded")
 				# directory provided; use paths on disk
 				else:
 					paths = f[2]
