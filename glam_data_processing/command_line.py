@@ -211,17 +211,22 @@ def updateData():
 				# no directory given; pull from source
 				if not args.input_directory:
 					if product in octvi.supported_products:
+						# CHECKSUM!!!!! Current threshold for NDVI mosaic: 1GB
 						pathSize = 0
 						tries = 1
-						while pathSize < 1000000000:
-							if tries > 3:
+						while pathSize < 1000000000: # threshold
+							if tries > 3: # don't try more than three times
+								try:
+									os.remove(paths[0])
+								except:
+									pass
 								raise glam.UnavailableError("File size less than 1GB after 3 tries")
 							paths = downloader.pullFromSource(*f,tempDir)
 							try:
 								pathsize = os.path.getsize(paths[0])
 							except IndexError:
 								raise glam.UnavailableError("No file detected")
-							tries += 1
+							tries += 1 # increment tries
 					else:
 						paths = downloader.pullFromSource(*f,tempDir)
 						# check that at least one file was downloaded
