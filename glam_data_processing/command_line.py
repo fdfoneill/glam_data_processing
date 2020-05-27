@@ -215,15 +215,15 @@ def updateData():
 						pathSize = 0
 						tries = 1
 						while pathSize < 1000000000: # threshold
+							try:
+								os.remove(paths[0])
+							except:
+								pass
 							if tries > 3: # don't try more than three times
-								try:
-									os.remove(paths[0])
-								except:
-									pass
 								raise glam.UnavailableError("File size less than 1GB after 3 tries")
 							paths = downloader.pullFromSource(*f,tempDir)
 							try:
-								pathsize = os.path.getsize(paths[0])
+								pathSize = os.path.getsize(paths[0])
 							except IndexError:
 								raise glam.UnavailableError("No file detected")
 							tries += 1 # increment tries
