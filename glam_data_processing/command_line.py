@@ -224,6 +224,7 @@ def updateData():
 							paths = downloader.pullFromSource(*f,tempDir)
 							try:
 								pathSize = os.path.getsize(paths[0])
+								log.info(f"File size = {pathSize} bytes")
 							except IndexError:
 								raise glam.UnavailableError("No file detected")
 							tries += 1 # increment tries
