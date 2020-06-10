@@ -214,7 +214,8 @@ def updateData():
 						# CHECKSUM!!!!! Current threshold for NDVI mosaic: 1GB
 						pathSize = 0
 						tries = 1
-						while pathSize < 1000000000: # threshold
+						sizeThreshold = 1000000000
+						while pathSize < sizeThreshold: # threshold
 							try:
 								os.remove(paths[0])
 							except:
@@ -224,7 +225,8 @@ def updateData():
 							paths = downloader.pullFromSource(*f,tempDir)
 							try:
 								pathSize = os.path.getsize(paths[0])
-								log.info(f"File size = {pathSize} bytes")
+								if pathSize < sizeThreshold:
+									log.warning(f"File size of {pathSize} bytes below threshold")
 							except IndexError:
 								raise glam.UnavailableError("No file detected")
 							tries += 1 # increment tries
