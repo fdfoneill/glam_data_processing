@@ -1155,7 +1155,7 @@ class Downloader:
 					shutil.copyfileobj(b,a)
 
 			## add tiling to file
-			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW"]
+			cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW", "-co", "PREDICTOR=2"]
 			subprocess.call(cloudOpArgs)
 
 			## remove intermediate
