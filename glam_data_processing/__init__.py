@@ -2655,8 +2655,7 @@ class Mask:
 		except KeyError:
 			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
-		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
-		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
+		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+endpoint+'/'+mysql_db # full path to mysql database
 
 		if product is None:
 			product = self.product
@@ -2785,8 +2784,7 @@ class Region:
 		except KeyError:
 			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
 
-		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
-		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
+		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+endpoint+'/'+mysql_db # full path to mysql database
 
 		if product is None:
 			product = self.product
