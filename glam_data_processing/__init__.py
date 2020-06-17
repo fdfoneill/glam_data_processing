@@ -107,14 +107,22 @@ ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
 
 admins_gaul = ["gaul1"]
 admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
+admins_mali = ["Mali","ICPAC"]
 admins = admins_gaul + admins_brazil
-
-# make crops_brazil_info
-crops_brazil_info = {}
 
 crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat","cropland"]
 crops_brazil = ['2S-DFZSafraZ2013_2014', '2S-GOZSafraZ2013_2014', '2S-MAZSafraZ2013_2014', '2S-MGZSafraZ2013_2014', '2S-MSZSafraZ2013_2014', '2S-MTZSafraZ2013_2014', '2S-PIZSafraZ2013_2014', '2S-PRZSafraZ2012_2013', '2S-SPZSafraZ2013_2014', '2S-TOZSafraZ2013_2014', 'CV-DFZSafraZ2017_2018', 'CV-GOZSafraZ2014_2015', 'CV-MATOPIBAZSafraZ2013_2014', 'CV-MGZSafraZ2013_2014', 'CV-MSZSafraZ2014_2015', 'CV-MTZSafraZ2014_2015', 'CV-PRZSafraZ2013_2014', 'CV-ROZSafraZ2013_2014', 'CV-RSZSafraZ2011_2012', 'CV-SCZSafraZ2013_2014', 'CV-SPZSafraZ2014_2015']#list(crops_brazil_info.keys())
-crops = crops_cropmonitor + crops_brazil + ["nomask"]
+crops_mali = ["Mali","ICPAC","JRC_MARS"]
+crops = crops_cropmonitor + crops_brazil + crops_mali + ["nomask"]
+
+# make admin_crops_matchup
+admin_crops_matchup = {}
+for admin in admins_gaul:
+	admin_crops_matchup[admin] = crops_cropmonitor
+for admin in admins_brazil:
+	admin_crops_matchup[admin] = crops_brazil+["maize","rice","soybean","winterwheat","cropland"] # Cropmonitor minus springwheat
+admin_crops_matchup["Mali"] = ["Mali","maize",'rice',"cropland"] # only overlap
+admin_crops_matchup["ICPAC"] = ["ICPAC","JRC_MARS","maize","rice","soybean","winterwheat","cropland"] # only overlap
 
 ## rds endpoint
 
@@ -603,9 +611,7 @@ class MissingStatistics:
 		for crop in statsTables.keys():
 			for admin in statsTables[crop].keys():
 				# skip combos that are deliberately omitted
-				if crop == "springwheat" and admin in ["BR_State","BR_Municipality","BR_Mesoregion","BR_Microregion"]:
-					continue
-				if crop in crops_brazil and admin == "gaul1":
+				if crop not in admin_crops_matchup[admin]:
 					continue
 				# if the table doesn't exist, the stats havent been generated
 				if not statsTables[crop][admin].exists:
@@ -2522,6 +2528,8 @@ class Image:
 				if crop_specified and (crop != crop_specified):
 					continue
 				for admin in stats_tables[crop].keys():
+					if crop not in admin_crops_matchup[admin]:
+						continue
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
@@ -2565,6 +2573,7 @@ class Image:
 					connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
 
 		return True
+
 
 class Mask:
 	"""
@@ -2666,6 +2675,136 @@ class Mask:
 			# if it's MODIS resolution, also make a record with product="mask" for use in frontend display masking
 			if product in octvi.supported_products:
 				keys["product"] = "mask"
+				driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
+		except Exception as e:
+			log.error(e)
+			return False
+
+		## upload file to s3 bucket
+		log.debug("-uploading file to s3 bucket")
+		def upload_file_s3(upload_file,bucket) -> bool:
+			try:
+				s3_client = boto3.client('s3',
+					aws_access_key_id=os.environ['AWS_accessKeyId'],
+					aws_secret_access_key=os.environ['AWS_secretAccessKey']
+					)
+			except KeyError:
+				raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'aws configure' on the command line.")
+			
+			b = bucket.split("/")[0]
+			k = bucket.split("/")[1]+"/"+os.path.basename(upload_file)
+			try:
+				response = s3_client.upload_file(Filename=upload_file,Bucket=b,Key=k)
+			except ClientError as e:
+				log.error(e)
+				return False
+			return True
+		u = upload_file_s3(self.path,s3_bucket)
+
+		## return True if everything succeeded, or False otherwise
+		return u
+
+
+class Region:
+	"""
+	A class used to represent binary crop masks.
+
+	...
+
+	Attributes
+	----------
+	engine: sqlalchemy engine object
+		this database engine is connected to the glam system database
+	metadata: sqlalchemy metadata object
+		stores the metadata
+	masks: sqlalchemy table object
+		a look-up table storing id values for each crop mask
+	path: str
+		full path to input raster file
+	product: str
+		type of data product, extracted from file path
+	year: str
+		dummy year of input raster file, set to 0 for masks
+	doy: str
+		dummy day of year of input raster file, set to 0 for masks
+
+	Methods
+	-------
+	ingest() -> bool
+		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database 
+	"""
+	# mysql credentials
+	noCred = None
+	try:
+		mysql_user = os.environ['glam_mysql_user']
+		mysql_pass = os.environ['glam_mysql_pass']
+		mysql_db = 'modis_dev'
+
+		engine = db.create_engine(f'mysql+pymysql://{mysql_user}:{mysql_pass}@{endpoint}/{mysql_db}')
+		Session = sessionmaker(bind=engine)
+		metadata = db.MetaData()
+		masks = db.Table('masks', metadata, autoload=True, autoload_with=engine)
+	except KeyError:
+		log.warning("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+		noCred = True
+
+
+	def __init__(self,file_path:str):
+		if self.noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+		self.type = "region"
+		if not os.path.exists(file_path):
+			raise BadInputError(f"File {file_path} not found")
+		self.path = file_path
+		self.product = os.path.basename(file_path).split(".")[0]
+		if self.product not in ancillary_products + octvi.supported_products:
+			raise BadInputError(f"Product type '{self.product}' not recognized")
+		self.collection = os.path.basename(file_path).split(".")[1]
+		self.year = "1"
+		self.doy = "1"
+
+
+
+	def __repr__(self):
+		return f"<Instance of Region, product:{self.product}, collection:{self.collection}, type:{self.type}>"
+
+	def ingest(self,product = None) -> bool:
+		"""
+		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
+		Returns True on success and False on failure
+		"""
+
+		log.debug("-defining variables")
+		file_name = os.path.basename(self.path) # extracts directory of image file
+		s3_bucket = 'glam-tc-data/regions/' # name of s3 bucket
+		# mysql credentials
+		try:
+			mysql_user = os.environ['glam_mysql_user']
+			mysql_pass = os.environ['glam_mysql_pass']
+			mysql_db = 'modis_dev'
+		except KeyError:
+			raise NoCredentialsError("Database credentials not found. Use 'glamconfigure' on command line to set archive credentials.")
+
+		rds_endpoint = 'glam-tc-dev.c1khdx2rzffa.us-east-1.rds.amazonaws.com'
+		mysql_path = 'mysql://'+mysql_user+':'+mysql_pass+'@'+rds_endpoint+'/'+mysql_db # full path to mysql database
+
+		if product is None:
+			product = self.product
+
+		## update database
+		log.debug("-adding file to database")
+		driver = tc.get_driver(mysql_path)
+		key_names = ('product', 'year', 'day','collection','type')
+
+		# inserting file into database
+		keys = {"product":product,'collection':self.collection,"year":self.year,"day":self.doy,"type":self.type}
+		log.debug(keys)
+		s3_path = 's3://'+s3_bucket+file_name
+		try:
+			driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
+			# if it's MODIS resolution, also make a record with product="mask" for use in frontend display masking
+			if product in octvi.supported_products:
+				keys["product"] = "region"
 				driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
 		except Exception as e:
 			log.error(e)
@@ -3185,6 +3324,8 @@ class ModisImage(Image):
 				if crop_specified and (crop != crop_specified):
 					continue
 				for admin in stats_tables[crop].keys():
+					if crop not in admin_crops_matchup[admin]:
+						continue
 					if admin_level == "BRAZIL" and admin not in admins_brazil:
 						continue
 					if admin_level == "GAUL" and admin not in admins_gaul:
