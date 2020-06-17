@@ -108,7 +108,7 @@ ancillary_products = ["chirps","chirps-prelim","swi","merra-2"]
 admins_gaul = ["gaul1"]
 admins_brazil = ["BR_Mesoregion","BR_Microregion","BR_Municipality","BR_State"]
 admins_mali = ["Mali","ICPAC"]
-admins = admins_gaul + admins_brazil
+admins = admins_gaul + admins_brazil + admins_mali
 
 crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat","cropland"]
 crops_brazil = ['2S-DFZSafraZ2013_2014', '2S-GOZSafraZ2013_2014', '2S-MAZSafraZ2013_2014', '2S-MGZSafraZ2013_2014', '2S-MSZSafraZ2013_2014', '2S-MTZSafraZ2013_2014', '2S-PIZSafraZ2013_2014', '2S-PRZSafraZ2012_2013', '2S-SPZSafraZ2013_2014', '2S-TOZSafraZ2013_2014', 'CV-DFZSafraZ2017_2018', 'CV-GOZSafraZ2014_2015', 'CV-MATOPIBAZSafraZ2013_2014', 'CV-MGZSafraZ2013_2014', 'CV-MSZSafraZ2014_2015', 'CV-MTZSafraZ2014_2015', 'CV-PRZSafraZ2013_2014', 'CV-ROZSafraZ2013_2014', 'CV-RSZSafraZ2011_2012', 'CV-SCZSafraZ2013_2014', 'CV-SPZSafraZ2014_2015']#list(crops_brazil_info.keys())
@@ -118,11 +118,11 @@ crops = crops_cropmonitor + crops_brazil + crops_mali + ["nomask"]
 # make admin_crops_matchup
 admin_crops_matchup = {}
 for admin in admins_gaul:
-	admin_crops_matchup[admin] = crops_cropmonitor
+	admin_crops_matchup[admin] = crops_cropmonitor +["nomask"]
 for admin in admins_brazil:
-	admin_crops_matchup[admin] = crops_brazil+["maize","rice","soybean","winterwheat","cropland"] # Cropmonitor minus springwheat
-admin_crops_matchup["Mali"] = ["Mali","maize",'rice',"cropland"] # only overlap
-admin_crops_matchup["ICPAC"] = ["ICPAC","JRC_MARS","maize","rice","soybean","winterwheat","cropland"] # only overlap
+	admin_crops_matchup[admin] = crops_brazil+["maize","rice","soybean","winterwheat","cropland","nomask"] # Cropmonitor minus springwheat
+admin_crops_matchup["Mali"] = ["Mali","maize",'rice',"cropland","nomask"] # only overlap
+admin_crops_matchup["ICPAC"] = ["ICPAC","JRC_MARS","maize","rice","soybean","winterwheat","cropland","nomask"] # only overlap
 
 ## rds endpoint
 
@@ -687,6 +687,7 @@ class MissingStatistics:
 			#raise BadInputError(f"Number of directory arguments does not match number of products. Please pass exactly {len(self.products)} directory paths to the rectify() method.")
 		parallel = kwargs.get("parallel",False)
 		cluster = kwargs.get("cluster",False)
+		speak = kwargs.get("speak",False)
 		#print((parallel,cluster))
 		if parallel:
 			parallel_args = []
@@ -719,7 +720,7 @@ class MissingStatistics:
 								parallel_args.append((working_file,self.data[p][date],True,(fileNo,fileCount)))
 								fileNo += 1
 							else:
-								if not self.fillFile(working_file,self.data[p][date]):
+								if not self.fillFile(working_file,self.data[p][date],speak=speak):
 									return False
 						endTime = datetime.now()
 						if not parallel:
@@ -734,7 +735,7 @@ class MissingStatistics:
 						parallel_args.append((working_file,self.data[p][date],True,(fileNo,fileCount)))
 						fileNo += 1
 					else:
-						if not self.fillFile(working_file,self.data[p][date]):
+						if not self.fillFile(working_file,self.data[p][date],speak=speak):
 							return False
 					# # check if it exists in working_directory
 					# working_file_exists = os.path.exists(working_file)
@@ -794,7 +795,7 @@ class MissingStatistics:
 					date = datetime.strptime(f"{parts[1]}.{parts[2]}","%Y.%j").strftime("%Y-%m-%d")
 				else:
 					raise BadInputError(f"Product {p} not recognized")
-				file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))
+				file_path = downloader.pullFromS3(p,date,os.path.dirname(file_path))[0]
 			working_dir = os.path.dirname(file_path)
 			# create Image object
 			img = getImageType(file_path)(file_path)
@@ -2210,7 +2211,13 @@ class Image:
 
 		product_id = idCheck("product",self.product,self.collection.lower())
 		
-		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
+		# out_dict = {}
+		# for admin in self.admins:
+		# 	for crop in self.crops:
+		# 		if crop in admin_crops_matchup[admin]:
+		# 			out_dict[crop] 
+
+		return {crop:{admin:getStatID(product_id,idCheck('mask',crop),idCheck('region',admin)) for admin in self.admins if crop in admin_crops_matchup[admin]} for crop in self.crops} # nested dictionary: first level = crops, second level = admins
 
 
 	def uploadStats(self,stats_tables = None,admin_level="ALL",crop_level="ALL",admin_specified = None, crop_specified=None,override_brazil_limit=False) -> None:
