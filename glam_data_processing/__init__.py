@@ -2508,13 +2508,19 @@ class Image:
 				except db.exc.InternalError: # if the column does not exist, the attempt to select it will throw an error
 					# alter the table to add the desired columns
 					aSql = f"ALTER TABLE {table_name} ADD `{newCol_val}` float(2)"
-					connection.execute(aSql)
+					try:
+						connection.execute(aSql)
+					except db.exc.InternalError: # the column has somehow appeared between then and now... strange, but it happens with striking regularity on the cluster
+						log.warning(f"Column {newCol_val} has unexpectedly appeared in table {table_name}")
 				try:
 					connection.execute(f"SELECT `{newCol_pct}` FROM {table_name}") # as above, but for newcol_pct
 					log.debug(f"-column {newCol_pct} already exists in table {table_name}")
 				except db.exc.InternalError:
 					aSql = f"ALTER TABLE {table_name} ADD `{newCol_pct}` float(2)"
-					connection.execute(aSql)
+					try:
+						connection.execute(aSql)
+					except db.exc.InternalError: # the column has somehow appeared between then and now... strange, but it happens with striking regularity on the cluster
+						log.warning(f"Column {newCol_val} has unexpectedly appeared in table {table_name}")
 				for index, row in df.iterrows():
 					uSql= f"UPDATE {table_name} SET `{newCol_val}`={row['value']} WHERE admin = {row['admin']}"
 					connection.execute(uSql)
