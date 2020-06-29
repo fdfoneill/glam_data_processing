@@ -312,7 +312,7 @@ def rectifyStats():
 	log.info("Fetching missing stats")
 	missingStats.generate()
 	if args.list_missing:
-		for k in missingStats.data.keys():
+		for k in missingStats.data[args.product].keys():
 			nMissing = len(missingStats.data[k])
 			print(f"{args.product}, {k} | Missing {nMissing} tables")
 		log.info("Done. No missing stats have been rectified")
