@@ -284,8 +284,30 @@ def rectifyStats():
 		help="Path to directory where files of given product are stored")
 	parser.add_argument("-l",
 		"--list_missing",
+		action="store_true",
 		help="List files that have missing statistics, but do not rectify")
+	parser.add_argument("-r",
+		"--parallel",
+		action="store_true",
+		help="Use multiple cores to rectify missing stats")
+	parser.add_argument("-c",
+		"--cluster",
+		action="store_true",
+		help="Running on cluster, limit number of cores")
 	args = parser.parse_args()
+	# check argument validity
+	try:
+		if args.list_missing:
+			assert not args.parallel
+			assert not args.cluster
+	except AssertionError:
+		log.warning("'--list_missing' overrides '--parallel' and '--cluster'")
+	try:
+		if args.cluster:
+			assert args.parallel
+	except AssertionError:
+		log.warning("'--parallel' not set; ignoring use of '--cluster'")
+	# find and fix missing stats
 	missingStats = glam.MissingStatistics(args.product)
 	log.info("Fetching missing stats")
 	missingStats.generate()
