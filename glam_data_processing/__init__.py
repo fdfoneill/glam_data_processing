@@ -3372,6 +3372,80 @@ class ModisImage(Image):
 					connection.execute(f"INSERT INTO product_status (product, date, downloaded, processed, completed, statGen) VALUES ('{self.product}','{self.date}',True,False,False,True);")
 
 
+class AnomalyBaseline(Image):
+	"""A class to represent anomaly baseline images
+
+	Inherits from glam.Image
+
+	...
+
+	Attributes
+	----------
+	engine: sqlalchemy engine object
+		this database engine is connected to the glam system database
+	metadata: sqlalchemy metadata object
+		stores the metadata
+	masks: sqlalchmy table object
+		a look-up table storing id values for each crop mask
+	regions: sqlalchemy table object
+		a look-up table storing id values for each admin level
+	products: sqlalchmy table object
+		a look-up table storing id values for each product type, both ancillary and modis
+	stats: sqlalchemy table object
+		a look-up table linking produc, region, and mask id combinations to their corresponding stats table id
+	product_status: sqlalchemy table object
+		a table recording the extent to which the image has been processed into the glam system
+	admins: list
+		string representations of the supported admin levels, including gaul global and individual countries
+	path: str
+		full path to input raster file
+	product: str
+		type of data product, extracted from file path
+	date: str
+		full date of input raster file, extracted from file path
+	year: str
+		year of input raster file, extracted from date
+	doy: str
+		day of year of input raster file, converted from date
+	cropMaskFiles: dict
+		dictionary which links the five considered crops to their corresponding crop mask raster
+	virtual: bool
+		Marks object as a virtual Image rather than pointing to a file on disk
+
+
+	Methods
+	-------
+	ingest() -> bool
+		Uploads the file at self.path to the aws s3 bucket, and inserts the corresponding base file name into the database
+	"""
+
+	def __init__(self,file_path,virtual=False):
+		if self.noCred:
+			raise NoCredentialsError("Database credentials not found. Image objects cannot be instantialized. Use 'glamconfigure' on command line to set archive credentials.")
+		self.virtual = virtual
+		if not os.path.exists(file_path) and not virtual:
+			raise BadInputError(f"File {file_path} not found")
+		self.path = file_path
+		self.product = os.path.basename(file_path).split(".")[0]
+		if self.product not in ancillary_products+octiv.supported_products:
+			raise BadInputError(f"Product type '{self.product}' not recognized")
+		if self.product == 'merra-2':
+			merraCollections = {'min':'Minimum','mean':'Mean','max':'Maximum'}
+			self.collection = merraCollections.get(self.path.split(".")[2],'0')
+		else:
+			self.collection = '0'
+		try:
+			self.year = datetime.now().strftime("%Y")
+			self.doy = os.path.basename(file_path).split(".")[1]
+			self.date = datetime.strptime(f"{self.year}.{self.doy}","%Y.%j").strftime("%Y-%m-%d")
+		except:
+			raise BadInputError("Incorrect date format in file name. Format is: '{product}.{doy}*.{anomalyType}.tif'")
+		self.type = os.path.basename(file_path).split(".")[-2]
+
+	# override repr inheritance, correct object type
+	def __repr__(self):
+		return f"<Instance of AnomalyBaseline, product:{self.product}, date:{self.date}, collection:{self.collection}, type:{self.type}>"
+
 ## define functions
 
 def parallel_fillFile(file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) -> bool:
