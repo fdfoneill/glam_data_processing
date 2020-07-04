@@ -318,7 +318,7 @@ def rectifyStats():
 		log.info("Done. No missing stats have been rectified")
 		sys.exit()
 	log.info("Rectifying all missing tables")
-	missingStats.rectify(args.directory)
+	missingStats.rectify(args.directory,parallel = args.parallel,cluster=args.cluster)
 	log.info(f"Done. All missing stats for {args.product} have been rectified")
 
 def fillArchive():
