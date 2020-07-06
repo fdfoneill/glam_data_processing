@@ -766,8 +766,12 @@ class MissingStatistics:
 				else:
 					n_cores = math.floor(multiprocessing.cpu_count()/3)
 				log.info(f"Rectifying files in parallel over {n_cores} cores")
-				with multiprocessing.Pool(processes=n_cores) as pool:
-					pool.starmap(parallel_fillFile,parallel_args)
+				try:
+					with multiprocessing.Pool(processes=n_cores) as pool:
+						pool.starmap(parallel_fillFile,parallel_args)
+						pool.close()
+				except:
+					log.exception("Failure in multiprocessing (pool.starmap)")
 		except:
 			log.exception("Failed to rectify")
 			return False
