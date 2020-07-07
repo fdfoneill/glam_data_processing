@@ -1631,7 +1631,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return tuple([octvi.globalVi(product,date,outPath)])
+			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 		def downloadMyd09q1(date:str,out_dir:str) -> tuple:
 			"""
@@ -1643,7 +1643,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return tuple([octvi.globalVi(product,date,outPath)])
+			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 		def downloadMod13q1(date:str,out_dir:str) -> tuple:
 			"""
@@ -1655,7 +1655,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return tuple([octvi.globalVi(product,date,outPath)])
+			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 		def downloadMyd13q1 (date:str,out_dir:str) -> tuple:
 			"""
@@ -1667,7 +1667,7 @@ class Downloader:
 			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-			return tuple([octvi.globalVi(product,date,outPath)])
+			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 		actions = {
 			"swi":downloadSwi,
