@@ -731,7 +731,7 @@ class MissingStatistics:
 					else:
 						working_base = f"{p}.{datetime.strptime(date,'%Y-%m-%d').strftime('%Y.%j')}.tif"
 					working_file = os.path.join(working_directory,working_base)
-					if parallel:
+					if parallel and p != "merra-2":
 						parallel_args.append((working_file,self.data[p][date],True,(fileNo,fileCount)))
 						fileNo += 1
 					else:
@@ -757,6 +757,9 @@ class MissingStatistics:
 					if not parallel:
 						log.info(f'Finished rectifying {p} x {date} in {endTime-startTime}. Done.                               ')
 			if parallel:
+				## REMOVE REMOVE REMOVE ######
+				return parallel_args #########
+				##############################
 				# print(parallel_args[0])
 				# import pickle
 				# print(pickle.dumps(parallel_args[0]))
@@ -3457,7 +3460,8 @@ def parallel_fillFile(file_path,combo_tuple_list,speak=False,count_tuple=(0,0)) 
 	so the parallel version of MissingStatistics.rectify()
 	has to have this function defined at the top level. 
 	"""
-	return MissingStatistics.fillFile(file_path,combo_tuple_list,speak,count_tuple)
+	ms = MissingStatistics()
+	return ms.fillFile(file_path,combo_tuple_list,speak,count_tuple)
 
 def getImageType(in_path:str) -> Image:
 	"""
