@@ -287,6 +287,8 @@ class ToDoList:
 			yield ("MOD13Q1",d)
 		for d in self.myd13q1:
 			yield ("MYD13Q1",d)
+		for d in self.mod13q4n:
+			yield ("MOD13Q4N",d)
 
 	def __call__(self):
 		for f in self:
@@ -488,6 +490,28 @@ class ToDoList:
 
 			return getDbMissing("MYD13Q1") + getChronoMyd13q1()
 
+		def getAllMod13q4n() -> list:
+			"""Return list of string dates of all missing MYD13Q1 files"""
+			
+			def getChronoMod13q4n() -> list:
+				"""Return list of string dates for MYD09Q1 files between last database entry and current time"""
+				latest = getLatestDate("MOD13Q4N")
+				if latest is None:
+					latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+				today = datetime.date(datetime.today())
+				cm = []
+				while latest < today:
+					oldYear = latest.strftime("%Y")
+					latest = latest + timedelta(days = 1)
+					if latest.strftime("%Y") != oldYear:
+						latest = latest.replace(day=1)
+					log.debug(f"Found missing file in valid date range: MOD13Q4N for {latest.strftime('%Y-%m-%d')}")
+					cm.append(latest.strftime("%Y-%m-%d"))
+					updateDatabase('MOD13Q4N',latest.strftime("%Y-%m-%d"))
+				return cm
+
+			return getDbMissing("MOD13Q4N") + getChronoMod13q4n()
+
 		with self.engine.begin() as connection:
 			connection.execute("UPDATE product_status SET completed = 1 WHERE processed = 1 AND statGen = 1;")
 
@@ -499,6 +523,7 @@ class ToDoList:
 		self.myd09q1 = getAllMyd09q1()
 		self.mod13q1 = getAllMod13q1()
 		self.myd13q1 = getAllMyd13q1()
+		self.mod13q4n = getAllMod13q4n()
 		self.timestamp = datetime.now()
 		self.filtered = False
 
@@ -512,6 +537,7 @@ class ToDoList:
 		self.myd09q1 = [f for f in self.myd09q1 if filterMachine.isAvailable("MYD09Q1",f)]
 		self.mod13q1 = [f for f in self.mod13q1 if filterMachine.isAvailable("MOD13Q1",f)]
 		self.myd13q1 = [f for f in self.myd13q1 if filterMachine.isAvailable("MYD13Q1",f)]
+		self.mod13q4n = [f for f in self.mod13q4n if filterMachine.isAvailable("MOD13Q4N",f)]
 		self.filtered = True
 
 # find which imagery doesn't have all statistics generated
@@ -770,7 +796,7 @@ class MissingStatistics:
 					n_cores = math.floor(multiprocessing.cpu_count()/3)
 				log.info(f"Rectifying files in parallel over {n_cores} cores")
 				try:
-					with multiprocessing.Pool(processes=n_cores) as pool:
+					with multiprocessing.get_context("spawn").Pool(processes=n_cores) as pool:
 						pool.starmap(parallel_fillFile,parallel_args)
 						pool.close()
 				except:
@@ -1034,6 +1060,12 @@ class Downloader:
 			else:
 				return False
 
+		def checkMod13q4n(date:str) -> bool:
+			if len(octvi.url.getDates("MOD13Q4N",date)) > 0:
+				return True
+			else:
+				return False
+
 		if not self.credentials:
 			raise NoCredentialsError("Data archive credentials not set. Use 'glamconfigure' on command line to set credentials.")
 		actions = {
@@ -1044,7 +1076,8 @@ class Downloader:
 			'MOD09Q1':checkMod09q1,
 			'MYD09Q1':checkMyd09q1,
 			'MOD13Q1':checkMod13q1,
-			'MYD13Q1':checkMyd13q1
+			'MYD13Q1':checkMyd13q1,
+			'MOD13Q4N':checkMod13q4n
 			}
 		return actions[product](date)
 
@@ -1669,6 +1702,18 @@ class Downloader:
 
 			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
+		def downloadMod13q4n (date:str,out_dir:str) -> tuple:
+			"""
+			Given date of MYD13Q1 product, downloads file to directory if possible
+			Returns tuple containing file path or empty list if download failed
+			Downloaded files are COGs in sinusoidal projection
+			"""
+			product = "MOD13Q4N"
+			jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+			return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
+
 		actions = {
 			"swi":downloadSwi,
 			"chirps":downloadChirps,
@@ -1677,7 +1722,8 @@ class Downloader:
 			"MOD09Q1":downloadMod09q1,
 			"MYD09Q1":downloadMyd09q1,
 			"MOD13Q1":downloadMod13q1,
-			"MYD13Q1":downloadMyd13q1
+			"MYD13Q1":downloadMyd13q1,
+			"MOD13Q4N":downloadMod13q4n
 			}
 		return actions[product](date=date,out_dir=out_dir)
 
@@ -3478,7 +3524,7 @@ def getImageType(in_path:str) -> Image:
 		raise BadInputError(f"Image type '{p}' not recognized.")
 
 # erases all records of a file from the s3 bucket and all databases -- USE ONLY AS A LAST RESORT
-def purge(product, date, auth_key) -> bool:
+def purge(product, date, auth_key, non_prelim = False) -> bool:
 	"""
 	This function expunges a given product-date combination from existence, as if it never was. The files will be removed, all records will be deleted, and life will continue as usual.
 	This function 'un-persons' the file.
@@ -3503,6 +3549,9 @@ def purge(product, date, auth_key) -> bool:
 	if auth_hash != b'\x7f\\\x04u\xa7\xbf\xa4R\xc7\xc9\xd7{\xbaw\x7f\x80;\x00~\x9d#\xa2\x81M:\xc1\xe2B?\xb9F{':
 		log.error(f"Unauthorized with key: '{auth_key}'")
 		return None
+
+	if (product not in ["chirps-prelim","MOD13Q4N"]) and (not non_prelim):
+		log.error(f"Set 'non_prelim' to 'True' to delete non-preliminary product {product}")
 
 	# mysql credentials
 	try:
@@ -3543,7 +3592,7 @@ def purge(product, date, auth_key) -> bool:
 				for col in colnames:
 					try:
 						#delete column
-						connection.execute(f"ALTER TABLE {name} DROP COLUMN {col};")
+						connection.execute(f"ALTER TABLE {name} DROP COLUMN `{col}`;")
 					except db.exc.InternalError:
 						log.warning(f"In attempting to remove stats for {img.product} {img.date}: Column '{col}' does not exist in table '{name}'")
 
