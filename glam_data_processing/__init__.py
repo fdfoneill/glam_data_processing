@@ -514,6 +514,7 @@ class ToDoList:
 
 		with self.engine.begin() as connection:
 			connection.execute("UPDATE product_status SET completed = 1 WHERE processed = 1 AND statGen = 1;")
+			connection.execute("UPDATE product_status SET completed = 0 WHERE processed = 0 OR statGen = 0;")
 
 		self.merra = getAllMerra2()
 		self.chirps = getAllChirps()
