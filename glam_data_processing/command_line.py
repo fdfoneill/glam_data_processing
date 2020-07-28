@@ -6,6 +6,7 @@ log = logging.getLogger("glam_command_line")
 import argparse, glob, json, octvi, sys
 import glam_data_processing as glam
 from getpass import getpass
+from datetime import datetime
 
 def getYesNo(message:str) -> bool:
 	cont = input(message+"[Y/N]\n")
@@ -344,6 +345,55 @@ def fillArchive():
 			log.info(f"Pulling {t} | {i} of {l}")
 			downloader.pullFromS3(*t,args.directory)
 		log.info(f"Done. {args.directory} is up-to-date with S3.")
+
+def clean():
+	parser = argparse.ArgumentParser(description="Remove redundant chirps-prelim and/or NRT data")
+	parser.add_argument("-c",
+		"--chirps",
+		action='store_true',
+		help="Clean chirps-prelim data specifically")
+	parser.add_argument("-n",
+		"--nrt",
+		action='store_true',
+		help="Clean NRT NDVI data specifically")
+	args = parser.parse_args()
+
+	doChirps = args.chirps
+	doNrt = args.nrt
+
+	# if the user doesn't specify one product, assume they want both
+	if (not doChirps) and (not doNrt):
+		doChirps = doNrt = True
+
+	downloader = glam.Downloader()
+
+	if doChirps:
+		with downloader.engine.begin() as connection:
+			latestChirps = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='chirps' AND completed=1;").fetchone()[0] # gets datetime.date object
+		print(f"Latest Chirps file: {latestChirps.strftime('%Y-%m-%d')}")
+		allPrelim = downloader.getAllS3('chirps-prelim')
+		for ct in allPrelim:
+			d_object = datetime.date(datetime.strptime(ct[1],"%Y-%m-%d"))
+			if d_object <= latestChirps:
+				glam.purge(*ct, auth_key='geoglam!23')
+				log.info(f"{ct[1]} <- purged")
+			else:
+				log.info(f"{ct[1]} <- preserved")
+
+	if doNrt:
+		with downloader.engine.begin() as connection:
+			latestMod09 = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='MOD09Q1' AND completed=1;").fetchone()[0] # gets datetime.date object
+			latestMyd09 = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='MYD09Q1' AND completed=1;").fetchone()[0] # gets datetime.date object
+		print(f"Latest 8-day NDVI file: {max(latestMod09,latestMyd09).strftime('%Y-%m-%d')}")
+		allNrt = downloader.getAllS3('MOD13Q4N')
+		for nt in allNrt:
+			d_object = datetime.date(datetime.strptime(ct[1],"%Y-%m-%d"))
+			if (d_object <= latestMyd09) or (d_object <= latestMod09):
+				glam.purge(*nt, auth_key='geoglam!23')
+				log.info(f"{nt[1]} <- purged")
+			else:
+				log.info(f"{nt[1]} <- preserved")
+
 
 
 def getInfo():

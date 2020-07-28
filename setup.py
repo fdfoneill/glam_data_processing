@@ -48,7 +48,8 @@ setup(name='glam_data_processing',
 				'glamupdatestats=glam_data_processing.command_line:rectifyStats',
 				'glaminfo=glam_data_processing.command_line:getInfo',
 				'glamnewstats=glam_data_processing.generate_new_stats:main',
-				'glamfillarchive=glam_data_processing.command_line:fillArchive'
+				'glamfillarchive=glam_data_processing.command_line:fillArchive',
+				'glamcleanprelim=glam_data_processing.command_line:clean'
 				]
 			}
 		)
