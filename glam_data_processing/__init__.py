@@ -2066,6 +2066,8 @@ class Image:
 		cmd = f"UPDATE product_status SET {stage} = {status} WHERE product = '{self.product}' AND date = '{self.date}';"
 		with self.engine.begin() as connection:
 			connection.execute(cmd)
+			connection.execute("UPDATE product_status SET completed = 1 WHERE processed = 1 AND statGen = 1;")
+			connection.execute("UPDATE product_status SET completed = 0 WHERE processed = 0 OR statGen = 0;")
 
 	def isProcessed(self) -> bool:
 		"""Returns whether the file has been uploaded to the database and S3 bucket, according to the product_status table"""
