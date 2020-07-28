@@ -72,6 +72,15 @@ glamupdatedata
 	Performs an update on all data streams. First finds missing files and checks
 	for availability. For each available file, downloads, ingests, and calculates
 	statistics. Downloaded files are then deleted.
+glamnewstats
+	Used to add new statistics for all extant files; for example, when a new 
+	crop mask or region raster is added to the system.
+glamfillarchive
+	Given a local archive of GLAM imagery of a given product, pulls all such
+	imagery from S3 to the local archive.
+glamcleanprelim
+	Identifies outdated preliminary/NRT datasets (those for which 'final' data
+	have now been ingested) and deletes them.
 """
 
 from ._version import __version__
