@@ -3585,7 +3585,7 @@ def purge(product, date, auth_key, non_prelim = False) -> bool:
 			# there is no such file in the database
 			log.warning(f"Failed to delete {product} {date}")
 			return None
-		img = Image(local_file)
+		img = getImageType(local_file)(local_file)
 		stats_tables = img.getStatsTables()
 
 		# collect all associated stats table names/ids
