@@ -3580,12 +3580,21 @@ def purge(product, date, auth_key, non_prelim = False) -> bool:
 		# pull file to disk to get information
 		downloader = Downloader()
 		try:
-			local_file = downloader.pullFromS3(product, date, os.path.dirname(__file__))[0]
+			if product == "merra-2":
+				log.error("Cannot purge merra-2 datasets. If you really need to do this, write an implementation yourself.")
+				return None
+			elif product in ancillary_products:
+				local_file = f"{product}.{date}.tif"
+			elif product in octvi.supported_products:
+				local_date = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+				local_file = f"{product}.{local_date}.tif"
+			# local_file = downloader.pullFromS3(product, date, os.path.dirname(__file__))[0]
 		except IndexError:
 			# there is no such file in the database
 			log.warning(f"Failed to delete {product} {date}")
 			return None
-		img = getImageType(local_file)(local_file)
+		img = getImageType(local_file)(local_file,virtual=True)
+
 		stats_tables = img.getStatsTables()
 
 		# collect all associated stats table names/ids
