@@ -363,14 +363,15 @@ def clean():
 
 	# if the user doesn't specify one product, assume they want both
 	if (not doChirps) and (not doNrt):
-		doChirps = doNrt = True
+		doChirps = True
+		doNrt = True
 
 	downloader = glam.Downloader()
 
 	if doChirps:
 		with downloader.engine.begin() as connection:
 			latestChirps = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='chirps' AND completed=1;").fetchone()[0] # gets datetime.date object
-		print(f"Latest Chirps file: {latestChirps.strftime('%Y-%m-%d')}")
+		# print(f"Latest Chirps file: {latestChirps.strftime('%Y-%m-%d')}")
 		allPrelim = downloader.getAllS3('chirps-prelim')
 		for ct in allPrelim:
 			d_object = datetime.date(datetime.strptime(ct[1],"%Y-%m-%d"))
@@ -384,7 +385,7 @@ def clean():
 		with downloader.engine.begin() as connection:
 			latestMod09 = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='MOD09Q1' AND completed=1;").fetchone()[0] # gets datetime.date object
 			latestMyd09 = connection.execute(f"SELECT MAX(date) FROM product_status WHERE product='MYD09Q1' AND completed=1;").fetchone()[0] # gets datetime.date object
-		print(f"Latest 8-day NDVI file: {max(latestMod09,latestMyd09).strftime('%Y-%m-%d')}")
+		# print(f"Latest 8-day NDVI file: {max(latestMod09,latestMyd09).strftime('%Y-%m-%d')}")
 		allNrt = downloader.getAllS3('MOD13Q4N')
 		for nt in allNrt:
 			d_object = datetime.date(datetime.strptime(ct[1],"%Y-%m-%d"))
