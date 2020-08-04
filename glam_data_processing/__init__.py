@@ -3639,7 +3639,10 @@ def purge(product, date, auth_key, non_prelim = False) -> bool:
 		s3_obj.delete()
 
 		# delete local file on disk
-		os.remove(local_file)
+		try:
+			os.remove(local_file)
+		except:
+			pass
 		return True
 
 # full process of finding missing files, downloading them from source, uploading them to S3+database, and generating statistics
