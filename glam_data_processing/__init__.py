@@ -3492,7 +3492,7 @@ class AnomalyBaseline(Image):
 			raise BadInputError(f"File {file_path} not found")
 		self.path = file_path
 		self.product = os.path.basename(file_path).split(".")[0]
-		if self.product not in ancillary_products+octiv.supported_products:
+		if self.product not in ancillary_products+octvi.supported_products:
 			raise BadInputError(f"Product type '{self.product}' not recognized")
 		if self.product == 'merra-2':
 			merraCollections = {'min':'Minimum','mean':'Mean','max':'Maximum'}
