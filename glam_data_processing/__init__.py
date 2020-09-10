@@ -122,12 +122,13 @@ admins = admins_gaul + admins_brazil + admins_mali
 crops_cropmonitor = ["maize","rice","soybean","springwheat","winterwheat","cropland"]
 crops_brazil = ['2S-DFZSafraZ2013_2014', '2S-GOZSafraZ2013_2014', '2S-MAZSafraZ2013_2014', '2S-MGZSafraZ2013_2014', '2S-MSZSafraZ2013_2014', '2S-MTZSafraZ2013_2014', '2S-PIZSafraZ2013_2014', '2S-PRZSafraZ2012_2013', '2S-SPZSafraZ2013_2014', '2S-TOZSafraZ2013_2014', 'CV-DFZSafraZ2017_2018', 'CV-GOZSafraZ2014_2015', 'CV-MATOPIBAZSafraZ2013_2014', 'CV-MGZSafraZ2013_2014', 'CV-MSZSafraZ2014_2015', 'CV-MTZSafraZ2014_2015', 'CV-PRZSafraZ2013_2014', 'CV-ROZSafraZ2013_2014', 'CV-RSZSafraZ2011_2012', 'CV-SCZSafraZ2013_2014', 'CV-SPZSafraZ2014_2015']#list(crops_brazil_info.keys())
 crops_mali = ["Mali","ICPAC","JRC_MARS"]
-crops = crops_cropmonitor + crops_brazil + crops_mali + ["nomask"]
+crops_chile = ["CHILE"]
+crops = crops_cropmonitor + crops_brazil + crops_mali + crops_chile + ["nomask"]
 
 # make admin_crops_matchup
 admin_crops_matchup = {}
 for admin in admins_gaul:
-	admin_crops_matchup[admin] = crops_cropmonitor +["nomask"]
+	admin_crops_matchup[admin] = crops_cropmonitor + crops_chile + ["nomask"]
 for admin in admins_brazil:
 	admin_crops_matchup[admin] = crops_brazil+["maize","rice","soybean","winterwheat","cropland","nomask"] # Cropmonitor minus springwheat
 admin_crops_matchup["Mali"] = ["Mali","maize",'rice',"cropland","nomask"] # only overlap
