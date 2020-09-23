@@ -626,7 +626,9 @@ class MissingStatistics:
 		## format virtual file name
 		if product == "merra-2": # need special behavior for MIN, MEAN, MAX
 			if collection != "0":
-				subCollection = {"Minimum":"min","Maximum":"max","Mean":"mean"}.get(collection)
+				subCollection = {"Minimum":"min","Maximum":"max","Mean":"mean"}.get(collection,collection)
+				if subCollection not in ["min","mean","max"]:
+					raise BadInputError(f"merra-2 collection '{collection}' not recognized")
 				virtual_path = f"{product}.{date}.{subCollection}.tif"
 			else: # recursively generate all three and exit
 				merraCombos = []
