@@ -31,6 +31,7 @@ setup(name='glam_data_processing',
 			'pandas',
 			'terracotta',
 			'sqlalchemy',
+			'pymysql',
 			'gdal'
 			],
 		# tests
