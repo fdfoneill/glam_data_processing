@@ -661,7 +661,7 @@ class MissingStatistics:
 				try:
 					with img.engine.begin() as con:
 						con.execute(f"SELECT `val.{doy}` FROM {table};").fetchone()
-				except (db.exc.InternalError, db.exc.ProgrammingError):
+				except (db.exc.InternalError, db.exc.ProgrammingError,db.exc.OperationalError):
 					missingCombos.append((admin,crop))
 		if len(missingCombos) == 0:
 			img.setStatus("statGen",True)
