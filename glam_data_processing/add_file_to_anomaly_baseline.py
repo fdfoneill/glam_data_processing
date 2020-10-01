@@ -205,7 +205,7 @@ if __name__ == "__main__":
 		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{new_image.date}.anomaly_mean_full.tif")
 		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{new_image.date}.anomaly_median_full.tif")
 	elif product == "swi":
-		output_doy = getSwiBaselineDoy(new_image)
+		output_doy = str(getSwiBaselineDoy(new_image)).zfill(3)
 		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_doy}.anomaly_mean_5year.tif")
 		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_doy}.anomaly_median_5year.tif")
 		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_doy}.anomaly_mean_10year.tif")
