@@ -166,7 +166,7 @@ if __name__ == "__main__":
 				outputstore['median_10year'] = median_10yr_calc.astype(dtype)
 				del data_10yr, median_10yr_masked, median_10yr_calc
 
-			if yearscounter == len(input_images):
+			if yearscounter == len(input_paths):
 				# Calculate the full time series mean and write it
 				data_full = np.array(valuestore)
 				mean_full_calc = np.ma.average(data_full, axis=0, weights=((data_full >= -1000) * (data_full <= 10000)))
