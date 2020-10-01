@@ -3,7 +3,7 @@ import logging, os
 logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger("glam_command_line")
 
-import argparse, glob, json, octvi, sys
+import argparse, glob, json, octvi, subprocess, sys
 import glam_data_processing as glam
 from getpass import getpass
 from datetime import datetime
@@ -109,6 +109,10 @@ def updateData():
 		"--stats",
 		action='store_true',
 		help="Stats generation only, no ingest")
+	parser.add_argument('-nab'
+		"--no_anomaly_baseline",
+		action='store_true',
+		help="Do not generate anomaly baseline for downloaded data")
 	parser.add_argument('-l',
 		'--list_missing',
 		action='store_true',
@@ -169,6 +173,9 @@ def updateData():
 		else:
 			log.debug(message)
 	speak(f"Running with verbosity level {args.verbose}")
+
+	## set anomaly baseline script name
+	anomaly_script = os.path.join(os.path.dirname(__file__),"add_file_to_anomaly_baseline.py")
 
 	## get toDoList or directory listing
 	# toDoList
@@ -260,6 +267,14 @@ def updateData():
 						image.uploadStats(crop_level=args.mask_level,admin_level=args.admin_level)
 						image.setStatus('statGen',True)
 						speak("--stats generated")
+					# generate anomaly baselines
+					if not args.no_anomaly_baseline and not (image.product in ["chirps-prelim","MOD13Q4N"]):
+						anomaly_args = ["python",anomaly_script,p,"-n",20]
+						try:
+							subprocess.call(anomaly_args)
+							speak("--anomaly baseline updated")
+						except:
+							log.exception("Failed to generate anomaly baseline")
 					if args.output_directory is None:
 						os.remove(p)
 						speak("--file removed")

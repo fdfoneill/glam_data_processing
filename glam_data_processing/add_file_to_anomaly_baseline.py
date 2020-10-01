@@ -13,6 +13,50 @@ import numpy as np
 import glam_data_processing as glam
 
 
+def getSwiBaselineDoy(new_img:glam.Image()) -> int:
+	for valid_swi_date in range(1,365,5):
+		if abs(new_img.doy-valid_swi_date) <= 2:
+			return valid_swi_date
+			
+
+def getInputPathList(new_img:glam.Image()) -> list:
+	data_directory = os.path.dirname(new_img.path)
+	product = new_img.product
+	input_images = []
+
+	allFiles = glob.glob(os.path.join(data_directory,"*.tif"))
+	if len(allFiles) < 1:
+		log.error(f"Failed to collect archive from {data_directory}")
+		return []
+
+	for f in allFiles:
+		try:
+			img = glam.getImageType(f)(f)
+		except: # not a well-formed image; for example; an intermediate image
+			continue
+		if product in supported_products+["merra-2"]:
+			# we can just use DOY for NDVI products and merra (since merra is daily)
+			if img.doy == doy:
+				input_images.append(img)
+		elif product == "swi":
+			output_doy = getSwiBaselineDoy(new_img)
+			dayDistance = abs(img.doy-output_doy)
+			if dayDistance <= 2: # 'img' is the closest date from given year to eventual output date
+				input_images.append(img)
+		elif product == "chirps": # must be chirps
+			if img.date.split("-")[1:] == new_image.date.split("-")[1:]: # tests that month and day are equal
+				input_images.append(img)
+		else:
+			log.error(f"Product {product} not recognized in getInputPathList()")
+	
+	# sort input_images
+	input_images.sort()
+	input_images.reverse()
+	input_paths = [i.path for i in input_images]
+
+	return input_paths
+
+
 if __name__ == "__main__":
 
 	startTime = datetime.now()
@@ -43,29 +87,8 @@ if __name__ == "__main__":
 	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","anomaly_baselines",product)
 	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year','mean_full','median_full']}
 	
-	# get input file listing
-	input_images = []
-	allFiles = glob.glob(os.path.join(data_directory,"*.tif"))
-	for f in allFiles:
-		try:
-			img = glam.getImageType(f)(f)
-		except: # not a well-formed image; for example; an intermediate image
-			continue
-		if product in supported_products:
-			# it's an NDVI product
-			if img.doy == doy:
-				input_images.append(img)
-		else:
-			# it's an ancillary product
-			if img.date.split("-")[1:] == new_image.date.split("-")[1:]: # tests that month and day are equal
-				input_images.append(img)
-	if len(allFiles) < 1:
-		log.warning(f"Failed to collect archive from {data_directory}")
-	
-	# sort input_images
-	input_images.sort()
-	input_images.reverse()
-	input_paths = [i.path for i in input_images]
+	# get input paths
+	input_paths = getInputPathList(new_image)
 
 	# get input raster metadata and dimensions
 	getmeta = rasterio.open(new_image.path)
@@ -168,12 +191,30 @@ if __name__ == "__main__":
 	log.debug("Starting baseline update")
 
 	# set output filenames
-	mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{doy}.anomaly_mean_5year.tif")
-	median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{doy}.anomaly_median_5year.tif")
-	mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{doy}.anomaly_mean_10year.tif")
-	median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{doy}.anomaly_median_10year.tif")
-	mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{doy}.anomaly_mean_full.tif")
-	median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{doy}.anomaly_median_full.tif")
+	if product in supported_products + ["merra-2"]: # can just use doy
+		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{doy}.anomaly_mean_5year.tif")
+		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{doy}.anomaly_median_5year.tif")
+		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{doy}.anomaly_mean_10year.tif")
+		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{doy}.anomaly_median_10year.tif")
+		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{doy}.anomaly_mean_full.tif")
+		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{doy}.anomaly_median_full.tif")
+	elif product == "chirps":
+		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{new_image.date}.anomaly_mean_5year.tif")
+		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{new_image.date}.anomaly_median_5year.tif")
+		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{new_image.date}.anomaly_mean_10year.tif")
+		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{new_image.date}.anomaly_median_10year.tif")
+		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{new_image.date}.anomaly_mean_full.tif")
+		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{new_image.date}.anomaly_median_full.tif")
+	elif product == "swi":
+		output_doy = getSwiBaselineDoy(new_image)
+		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_doy}.anomaly_mean_5year.tif")
+		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_doy}.anomaly_median_5year.tif")
+		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_doy}.anomaly_mean_10year.tif")
+		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{output_doy}.anomaly_median_10year.tif")
+		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{output_doy}.anomaly_mean_full.tif")
+		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{output_doy}.anomaly_median_full.tif")
+	else:
+		log.error(f"Product {product} not recognized for output baseline file name generation")
 
 	# # open input MemoryFiles
 	# self.open()
