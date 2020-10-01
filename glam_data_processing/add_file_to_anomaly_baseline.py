@@ -13,13 +13,13 @@ import numpy as np
 import glam_data_processing as glam
 
 
-def getSwiBaselineDoy(new_img:glam.Image -> int:
+def getSwiBaselineDoy(new_img:glam.Image) -> int:
 	for valid_swi_date in range(1,365,5):
 		if abs(new_img.doy-valid_swi_date) <= 2:
 			return valid_swi_date
 			
 
-def getInputPathList(new_img:glam.Image -> list:
+def getInputPathList(new_img:glam.Image) -> list:
 	data_directory = os.path.dirname(new_img.path)
 	product = new_img.product
 	input_images = []
