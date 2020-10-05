@@ -246,6 +246,7 @@ if __name__ == "__main__":
 
 	# do multiprocessing
 	log.info(f"Processing ({new_image.product} {new_image.date}) | {n_workers} parallel processes")
+	parallelStartTime = datetime.now()
 	p = multiprocessing.Pool(n_workers)
 
 	for win, values in p.imap(_mp_worker, windows):
@@ -271,8 +272,11 @@ if __name__ == "__main__":
 	mean_full_handle.close()
 	median_full_handle.close()
 
+	log.info(f"Finished parallel processing in {datetime.now() - parallelStartTime}")
+
 	# cloud-optimize new anomalies
 	log.debug("Converting baselines to cloud-optimized geotiffs")
+	cogStartTime = datetime.now()
 	def cloud_optimize_inPlace(in_file:str) -> None:
 		"""Takes path to input and output file location. Reads tif at input location and writes cloud-optimized geotiff of same data to output location."""
 		## add overviews to file
@@ -297,6 +301,8 @@ if __name__ == "__main__":
 
 	for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
 		cloud_optimize_inPlace(f)
+
+	log.info(f"Finished cloud-optimizing in {datetime.now() - cogStartTime}")
 
 	# ingest new anomalies
 	log.debug("Ingesting updated anomaly baselines to AWS")
