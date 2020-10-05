@@ -109,7 +109,7 @@ def updateData():
 		"--stats",
 		action='store_true',
 		help="Stats generation only, no ingest")
-	parser.add_argument('-nab'
+	parser.add_argument('-nab',
 		"--no_anomaly_baseline",
 		action='store_true',
 		help="Do not generate anomaly baseline for downloaded data")
