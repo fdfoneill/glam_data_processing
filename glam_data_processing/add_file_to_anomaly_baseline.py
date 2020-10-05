@@ -56,6 +56,35 @@ def getInputPathList(new_img:glam.Image) -> list:
 	return input_paths
 
 
+def cloud_optimize_inPlace(in_file:str) -> None:
+	"""Takes path to input and output file location. Reads tif at input location and writes cloud-optimized geotiff of same data to output location."""
+	## add overviews to file
+	cloudOpArgs = ["gdaladdo",in_file]
+	subprocess.call(cloudOpArgs)
+
+	## copy file
+	intermediate_file = in_file.replace(".tif",".TEMP.tif")
+	with open(intermediate_file,'wb') as a:
+		with open(in_file,'rb') as b:
+			shutil.copyfileobj(b,a)
+
+	## add tiling to file
+	cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW", "-co", "PREDICTOR=2"]
+	if product in supported_products:
+		cloudOpArgs.append("-co")
+		cloudOpArgs.append("BIGTIFF=YES")
+	subprocess.call(cloudOpArgs)
+
+	## remove intermediate
+	os.remove(intermediate_file)
+
+
+def anomaly_ingest(input_tuple:tuple):
+	f, y = input_tuple
+	anom = glam.AnomalyBaseline(f)
+	anom.year = y
+	anom.ingest()
+
 if __name__ == "__main__":
 
 	startTime = datetime.now()
@@ -277,39 +306,33 @@ if __name__ == "__main__":
 	# cloud-optimize new anomalies
 	log.debug("Converting baselines to cloud-optimized geotiffs")
 	cogStartTime = datetime.now()
-	def cloud_optimize_inPlace(in_file:str) -> None:
-		"""Takes path to input and output file location. Reads tif at input location and writes cloud-optimized geotiff of same data to output location."""
-		## add overviews to file
-		cloudOpArgs = ["gdaladdo",in_file]
-		subprocess.call(cloudOpArgs)
 
-		## copy file
-		intermediate_file = in_file.replace(".tif",".TEMP.tif")
-		with open(intermediate_file,'wb') as a:
-			with open(in_file,'rb') as b:
-				shutil.copyfileobj(b,a)
+	output_paths = [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]
 
-		## add tiling to file
-		cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW", "-co", "PREDICTOR=2"]
-		if product in supported_products:
-			cloudOpArgs.append("-co")
-			cloudOpArgs.append("BIGTIFF=YES")
-		subprocess.call(cloudOpArgs)
+	p = multiprocessing.Pool(len(output_paths))
+	p.imap(cloud_optimize_inPlace,output_paths)
 
-		## remove intermediate
-		os.remove(intermediate_file)
-
-	for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
-		cloud_optimize_inPlace(f)
+	# for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
+	# 	cloud_optimize_inPlace(f)
 
 	log.info(f"Finished cloud-optimizing in {datetime.now() - cogStartTime}")
 
 	# ingest new anomalies
 	log.debug("Ingesting updated anomaly baselines to AWS")
-	for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
-		anom = glam.AnomalyBaseline(f)
-		anom.year = new_image.year
-		anom.ingest()
+	ingestStartTime = datetime.now()
+	arg_tuples= [(x,new_image.year) for x in output_paths]
+	p.imap(anomaly_ingest,arg_tuples)
+
+	log.info(f"Finished ingesting in {datetime.now() - ingestStartTime}")
+
+	# for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
+	# 	anom = glam.AnomalyBaseline(f)
+	# 	anom.year = new_image.year
+	# 	anom.ingest()
+
+	## close pool
+	p.close()
+	p.join()
 
 	endTime = datetime.now()
 	log.info(f"Finished in {endTime-startTime}")
