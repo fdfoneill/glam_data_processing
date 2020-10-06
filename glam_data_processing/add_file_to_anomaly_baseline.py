@@ -322,7 +322,7 @@ if __name__ == "__main__":
 	# for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
 	# 	cloud_optimize_inPlace(f)
 
-	log.info(f"Finished cloud-optimizing and ingesting in {datetime.now() - cogStartTime}")
+	# log.info(f"Finished cloud-optimizing {datetime.now() - cogStartTime}")
 
 	# # ingest new anomalies
 	# log.debug("Ingesting updated anomaly baselines to AWS")
@@ -340,6 +340,8 @@ if __name__ == "__main__":
 	## close pool
 	p.close()
 	p.join()
+
+	log.info(f"Finished cloud-optimizing and ingesting in {datetime.now() - cogStartTime}")
 
 	endTime = datetime.now()
 	log.info(f"Finished in {endTime-startTime}")
