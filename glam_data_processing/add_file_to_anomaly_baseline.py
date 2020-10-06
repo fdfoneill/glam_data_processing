@@ -79,11 +79,17 @@ def cloud_optimize_inPlace(in_file:str) -> None:
 	os.remove(intermediate_file)
 
 
-def anomaly_ingest(input_tuple:tuple):
+def anomaly_ingest(input_tuple:tuple) -> bool:
 	f, y = input_tuple
 	anom = glam.AnomalyBaseline(f)
 	anom.year = y
-	anom.ingest()
+	return anom.ingest()
+
+
+def optimize_and_ingest(input_tuple:tuple):
+	f = input_tuple[0]
+	cloud_optimize_inPlace(f)
+	anomaly_ingest(input_tuple)
 
 if __name__ == "__main__":
 
@@ -304,26 +310,27 @@ if __name__ == "__main__":
 	log.info(f"Finished parallel processing in {datetime.now() - parallelStartTime}")
 
 	# cloud-optimize new anomalies
-	log.debug("Converting baselines to cloud-optimized geotiffs")
+	log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
 	cogStartTime = datetime.now()
 
 	output_paths = [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]
+	arg_tuples= [(x,new_image.year) for x in output_paths]
 
 	p = multiprocessing.Pool(len(output_paths))
-	p.imap(cloud_optimize_inPlace,output_paths)
+	p.imap(optimize_and_ingest,arg_tuples)
 
 	# for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
 	# 	cloud_optimize_inPlace(f)
 
-	log.info(f"Finished cloud-optimizing in {datetime.now() - cogStartTime}")
+	log.info(f"Finished cloud-optimizing and ingesting in {datetime.now() - cogStartTime}")
 
-	# ingest new anomalies
-	log.debug("Ingesting updated anomaly baselines to AWS")
-	ingestStartTime = datetime.now()
-	arg_tuples= [(x,new_image.year) for x in output_paths]
-	p.imap(anomaly_ingest,arg_tuples)
+	# # ingest new anomalies
+	# log.debug("Ingesting updated anomaly baselines to AWS")
+	# ingestStartTime = datetime.now()
+	# arg_tuples= [(x,new_image.year) for x in output_paths]
+	# p.imap(anomaly_ingest,arg_tuples)
 
-	log.info(f"Finished ingesting in {datetime.now() - ingestStartTime}")
+	# log.info(f"Finished ingesting in {datetime.now() - ingestStartTime}")
 
 	# for f in [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]:
 	# 	anom = glam.AnomalyBaseline(f)
