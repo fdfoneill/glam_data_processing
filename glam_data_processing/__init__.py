@@ -2149,7 +2149,7 @@ class Image:
 		try:
 			driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}')
 		except Exception as e:
-			log.error(e)
+			log.exception(e)
 			return False
 
 		## upload file to s3 bucket
@@ -2168,7 +2168,7 @@ class Image:
 			try:
 				response = s3_client.upload_file(Filename=upload_file,Bucket=b,Key=k)
 			except ClientError as e:
-				log.error(e)
+				log.exception(e)
 				return False
 			return True
 		u = upload_file_s3(self.path,s3_bucket)
@@ -2757,7 +2757,7 @@ class Mask:
 				keys["product"] = "mask"
 				driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
 		except Exception as e:
-			log.error(e)
+			log.exception(e)
 			return False
 
 		## upload file to s3 bucket
@@ -2776,7 +2776,7 @@ class Mask:
 			try:
 				response = s3_client.upload_file(Filename=upload_file,Bucket=b,Key=k)
 			except ClientError as e:
-				log.error(e)
+				log.exception(e)
 				return False
 			return True
 		u = upload_file_s3(self.path,s3_bucket)
@@ -2886,7 +2886,7 @@ class Region:
 				keys["product"] = "region"
 				driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
 		except Exception as e:
-			log.error(e)
+			log.exception(e)
 			return False
 
 		## upload file to s3 bucket
@@ -2905,7 +2905,7 @@ class Region:
 			try:
 				response = s3_client.upload_file(Filename=upload_file,Bucket=b,Key=k)
 			except ClientError as e:
-				log.error(e)
+				log.exception(e)
 				return False
 			return True
 		u = upload_file_s3(self.path,s3_bucket)
@@ -3117,7 +3117,7 @@ class ModisImage(Image):
 		try:
 			driver.insert(keys=keys, filepath=self.path, override_path=f'{s3_path}',ndvi=True)
 		except Exception as e:
-			log.error(e)
+			log.exception(e)
 			return False
 
 		## upload file to s3 bucket
@@ -3136,7 +3136,7 @@ class ModisImage(Image):
 			try:
 				response = s3_client.upload_file(Filename=upload_file,Bucket=b,Key=k)
 			except ClientError as e:
-				log.error(e)
+				log.exception(e)
 				return False
 			return True
 		u = upload_file_s3(self.path,s3_bucket)
