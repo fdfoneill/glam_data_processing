@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
 	# set baseline_locations
 	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","anomaly_baselines",product)
-	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year','mean_full','median_full']}
+	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']} #,'mean_full','median_full']}
 	
 	# get input paths
 	input_paths = getInputPathList(new_image)
@@ -201,20 +201,20 @@ if __name__ == "__main__":
 				outputstore['median_10year'] = median_10yr_calc.astype(dtype)
 				del data_10yr, median_10yr_masked, median_10yr_calc
 
-			if yearscounter == len(input_paths):
-				# Calculate the full time series mean and write it
-				data_full = np.array(valuestore)
-				mean_full_calc = np.ma.average(data_full, axis=0, weights=((data_full >= -1000) * (data_full <= 10000)))
-				mean_full_calc[mean_full_calc.mask==True] = -3000
-				outputstore['mean_full'] = mean_full_calc.astype(dtype)
-				del mean_full_calc
+			# if yearscounter == len(input_paths):
+			# 	# Calculate the full time series mean and write it
+			# 	data_full = np.array(valuestore)
+			# 	mean_full_calc = np.ma.average(data_full, axis=0, weights=((data_full >= -1000) * (data_full <= 10000)))
+			# 	mean_full_calc[mean_full_calc.mask==True] = -3000
+			# 	outputstore['mean_full'] = mean_full_calc.astype(dtype)
+			# 	del mean_full_calc
 
-				# Calculate the full time series median and write it
-				median_full_masked = np.ma.masked_outside(data_full, -1000, 10000)
-				median_full_calc = np.ma.median(median_full_masked, axis=0)
-				median_full_calc[median_full_calc.mask==True] = -3000
-				outputstore['median_full'] = median_full_calc.astype(dtype)
-				del data_full, median_full_masked, median_full_calc
+			# 	# Calculate the full time series median and write it
+			# 	median_full_masked = np.ma.masked_outside(data_full, -1000, 10000)
+			# 	median_full_calc = np.ma.median(median_full_masked, axis=0)
+			# 	median_full_calc[median_full_calc.mask==True] = -3000
+			# 	outputstore['median_full'] = median_full_calc.astype(dtype)
+			# 	del data_full, median_full_masked, median_full_calc
 			inputhandle.close()
 		return(targetwindow, outputstore)
 
@@ -230,23 +230,23 @@ if __name__ == "__main__":
 		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{doy}.anomaly_median_5year.tif")
 		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{doy}.anomaly_mean_10year.tif")
 		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{doy}.anomaly_median_10year.tif")
-		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{doy}.anomaly_mean_full.tif")
-		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{doy}.anomaly_median_full.tif")
+		# mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{doy}.anomaly_mean_full.tif")
+		# median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{doy}.anomaly_median_full.tif")
 	elif product == "chirps":
 		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{new_image.date}.anomaly_mean_5year.tif")
 		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{new_image.date}.anomaly_median_5year.tif")
 		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{new_image.date}.anomaly_mean_10year.tif")
 		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{new_image.date}.anomaly_median_10year.tif")
-		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{new_image.date}.anomaly_mean_full.tif")
-		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{new_image.date}.anomaly_median_full.tif")
+		# mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{new_image.date}.anomaly_mean_full.tif")
+		# median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{new_image.date}.anomaly_median_full.tif")
 	elif product == "swi":
 		output_doy = str(getSwiBaselineDoy(new_image)).zfill(3)
 		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_doy}.anomaly_mean_5year.tif")
 		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_doy}.anomaly_median_5year.tif")
 		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_doy}.anomaly_mean_10year.tif")
 		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{output_doy}.anomaly_median_10year.tif")
-		mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{output_doy}.anomaly_mean_full.tif")
-		median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{output_doy}.anomaly_median_full.tif")
+		# mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{output_doy}.anomaly_mean_full.tif")
+		# median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{output_doy}.anomaly_median_full.tif")
 	else:
 		log.error(f"Product {product} not recognized for output baseline file name generation")
 
@@ -259,8 +259,8 @@ if __name__ == "__main__":
 	median_5yr_handle = rasterio.open(median_5yr_name, 'w', **metaprofile)
 	mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
 	median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
-	mean_full_handle = rasterio.open(mean_full_name, 'w', **metaprofile)
-	median_full_handle = rasterio.open(median_full_name, 'w', **metaprofile)
+	# mean_full_handle = rasterio.open(mean_full_name, 'w', **metaprofile)
+	# median_full_handle = rasterio.open(median_full_name, 'w', **metaprofile)
 
 	# get windows
 	log.debug("Getting windows")
@@ -289,8 +289,8 @@ if __name__ == "__main__":
 		median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
 		mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
 		median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
-		mean_full_handle.write(values['mean_full'], window=win, indexes=1)
-		median_full_handle.write(values['median_full'], window=win, indexes=1)
+		# mean_full_handle.write(values['mean_full'], window=win, indexes=1)
+		# median_full_handle.write(values['median_full'], window=win, indexes=1)
 
 	## close pool
 	p.close()
@@ -304,8 +304,8 @@ if __name__ == "__main__":
 	median_5yr_handle.close()
 	mean_10yr_handle.close()
 	median_10yr_handle.close()
-	mean_full_handle.close()
-	median_full_handle.close()
+	# mean_full_handle.close()
+	# median_full_handle.close()
 
 	log.info(f"Finished parallel processing in {datetime.now() - parallelStartTime}")
 
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 	log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
 	cogStartTime = datetime.now()
 
-	output_paths = [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name, mean_full_name, median_full_name]
+	output_paths = [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name]#, mean_full_name, median_full_name]
 	arg_tuples= [(x,new_image.year) for x in output_paths]
 
 	p = multiprocessing.Pool(len(output_paths))
