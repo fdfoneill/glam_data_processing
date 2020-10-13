@@ -2254,7 +2254,7 @@ class Image:
 			try: # check whether the given stats table already exists
 				with self.engine.begin() as connection:
 					connection.execute(f"SELECT admin FROM stats_{stat_result[0][0]};").fetchone()
-					return StatsTable(f"stats_{stat_result[0][0]}", True)
+				return StatsTable(f"stats_{stat_result[0][0]}", True)
 
 			except IndexError: # thrown if there IS NO matching stats_id--need to create a new record in the stats table
 				#newHighestID = session.execute(func.max(self.stats.columns.stats_id)).fetchall()[0][0] + 1
@@ -3366,31 +3366,37 @@ class ModisImage(Image):
 			"""
 			newCol_val = f"val.{self.doy}"
 			newCol_pct = f"pct.{self.doy}"
-			with self.engine.begin() as connection:
-				try:
+			
+			try:
+				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_val}` FROM {table_name}") # try to select the desired columns
-					log.debug(f"-column {newCol_val} already exists in table {table_name}")
-				except db.exc.InternalError: # if the column does not exist, the attempt to select it will throw an error
-					# alter the table to add the desired columns
-					log.debug(f"Appending new column {newCol_val} to table {table_name}")
-					aSql = f"ALTER TABLE {table_name} ADD `{newCol_val}` float(2)"
+				log.debug(f"-column {newCol_val} already exists in table {table_name}")
+			except db.exc.InternalError: # if the column does not exist, the attempt to select it will throw an error
+				# alter the table to add the desired columns
+				log.debug(f"Appending new column {newCol_val} to table {table_name}")
+				aSql = f"ALTER TABLE {table_name} ADD `{newCol_val}` float(2)"
+				with self.engine.begin() as connection:
 					connection.execute(aSql)
-				try:
+			try:
+				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_pct}` FROM {table_name}") # as above, but for newcol_pct
-					log.debug(f"-column {newCol_pct} already exists in table {table_name}")
-				except db.exc.InternalError:
-					log.debug(f"Appending new column {newCol_pct} to table {table_name}")
-					aSql = f"ALTER TABLE {table_name} ADD `{newCol_pct}` float(2)"
+				log.debug(f"-column {newCol_pct} already exists in table {table_name}")
+			except db.exc.InternalError:
+				log.debug(f"Appending new column {newCol_pct} to table {table_name}")
+				aSql = f"ALTER TABLE {table_name} ADD `{newCol_pct}` float(2)"
+				with self.engine.begin() as connection:
 					connection.execute(aSql)
-				for index, row in df.iterrows():
-					uSql= f"UPDATE {table_name} SET `{newCol_val}`={row['value']} WHERE admin = {row['admin']}"
-					uRows = connection.execute(uSql)
-					uSql= f"UPDATE {table_name} SET `{newCol_pct}`={row['pct']} WHERE admin = {row['admin']}"
+			for index, row in df.iterrows():
+				uSql= f"UPDATE {table_name} SET `{newCol_val}`={row['value']} WHERE admin = {row['admin']}"
+				uRows = connection.execute(uSql)
+				uSql= f"UPDATE {table_name} SET `{newCol_pct}`={row['pct']} WHERE admin = {row['admin']}"
+				with self.engine.begin() as connection:
 					connection.execute(uSql)
-					if uRows.rowcount == 0: # admin does not yet exist in table
-						# append new row
-						log.debug(f"Inserting new row for admin {row['admin']} into table {table_name}")
-						iSql = f"INSERT INTO {table_name} (admin, arable, `{newCol_val}`, `{newCol_pct}`) VALUES ({row['admin']}, {row['arable']}, {row['value']}, {row['pct']});"
+				if uRows.rowcount == 0: # admin does not yet exist in table
+					# append new row
+					log.debug(f"Inserting new row for admin {row['admin']} into table {table_name}")
+					iSql = f"INSERT INTO {table_name} (admin, arable, `{newCol_val}`, `{newCol_pct}`) VALUES ({row['admin']}, {row['arable']}, {row['value']}, {row['pct']});"
+					with self.engine.begin() as connection:
 						connection.execute(iSql)
 
 		try:
