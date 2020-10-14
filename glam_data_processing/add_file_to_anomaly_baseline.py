@@ -3,7 +3,7 @@ import logging, os
 logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger(__name__)
 
-import argparse, copy, copyreg, glob, multiprocessing, rasterio, shutil, subprocess, types
+import argparse, copy, copyreg, glob, multiprocessing, rasterio, shutil, subprocess, sys, types
 from datetime import datetime
 from rasterio.windows import Window
 from rasterio.io import MemoryFile
@@ -123,6 +123,9 @@ if __name__ == "__main__":
 	
 	# get input paths
 	input_paths = getInputPathList(new_image)
+	if len(input_paths) < 10:
+		log.error(f"Only {len(input_paths)} paths found for {args.input_file}")
+		sys.exit()
 
 	# get input raster metadata and dimensions
 	getmeta = rasterio.open(new_image.path)
