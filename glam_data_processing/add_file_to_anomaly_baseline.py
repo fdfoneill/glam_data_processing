@@ -29,11 +29,14 @@ def getInputPathList(new_img:glam.Image) -> list:
 		log.error(f"Failed to collect archive from {data_directory}")
 		return []
 
+	all_years = []
+
 	for f in allFiles:
 		try:
 			img = glam.getImageType(f)(f)
 		except: # not a well-formed image; for example; an intermediate image
 			continue
+		all_years = list(set(all_years+[str(img.year)]))
 		if product in supported_products+["merra-2"]:
 			# we can just use DOY for NDVI products and merra (since merra is daily)
 			if img.doy == doy:
@@ -52,6 +55,15 @@ def getInputPathList(new_img:glam.Image) -> list:
 	input_images.sort()
 	input_images.reverse()
 	input_paths = [i.path for i in input_images]
+	if len(input_paths) != len(all_years):
+		produced_years = [str(img.year) for img in input_images]
+		missing_years = (list(list(set(all_years)-set(produced_years)) + list(set(produced_years)-set(all_years))))
+		err_str = "Matching input files not found for years "
+		for y in missing_years:
+			err_str = err_str + y+", "
+		err_str = err_str.strip(", ")
+		log.warning(err_str)
+
 
 	return input_paths
 
