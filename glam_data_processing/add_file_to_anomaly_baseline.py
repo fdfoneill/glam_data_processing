@@ -257,8 +257,9 @@ if __name__ == "__main__":
 	log.debug("Opening handles")
 	mean_5yr_handle = rasterio.open(mean_5yr_name, 'w', **metaprofile)
 	median_5yr_handle = rasterio.open(median_5yr_name, 'w', **metaprofile)
-	mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
-	median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
+	if len(input_paths) >= 10:
+		mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
+		median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
 	# mean_full_handle = rasterio.open(mean_full_name, 'w', **metaprofile)
 	# median_full_handle = rasterio.open(median_full_name, 'w', **metaprofile)
 
@@ -287,8 +288,9 @@ if __name__ == "__main__":
 	for win, values in p.imap(_mp_worker, windows):
 		mean_5yr_handle.write(values['mean_5year'], window=win, indexes=1)
 		median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
-		mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
-		median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
+		if len(input_paths) >= 10:
+			mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
+			median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
 		# mean_full_handle.write(values['mean_full'], window=win, indexes=1)
 		# median_full_handle.write(values['median_full'], window=win, indexes=1)
 
@@ -302,8 +304,9 @@ if __name__ == "__main__":
 	## close handles
 	mean_5yr_handle.close()
 	median_5yr_handle.close()
-	mean_10yr_handle.close()
-	median_10yr_handle.close()
+	if len(input_paths) >= 10:
+		mean_10yr_handle.close()
+		median_10yr_handle.close()
 	# mean_full_handle.close()
 	# median_full_handle.close()
 
@@ -313,7 +316,9 @@ if __name__ == "__main__":
 	log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
 	cogStartTime = datetime.now()
 
-	output_paths = [mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name]#, mean_full_name, median_full_name]
+	output_paths = [mean_5yr_name, median_5yr_name]
+	if len(input_paths) >= 10:
+		output_paths = output_paths + [mean_10yr_name, median_10yr_name]#, mean_full_name, median_full_name]
 	arg_tuples= [(x,new_image.year) for x in output_paths]
 
 	p = multiprocessing.Pool(len(output_paths))
