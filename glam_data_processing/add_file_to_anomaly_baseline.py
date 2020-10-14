@@ -68,7 +68,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 		produced_years = [str(img.year) for img in input_images]
 		counter = Counter(produced_years)
 		err_str = "Multiple matches found for: "
-		for k in counter.keys()
+		for k in counter.keys():
 			if counter[k] >1:
 				err_str += f"{k}:{counter[k]}, "
 		err_str = err_str.strip(", ")
