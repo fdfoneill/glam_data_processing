@@ -4,6 +4,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger(__name__)
 
 import argparse, copy, copyreg, glob, multiprocessing, rasterio, shutil, subprocess, sys, types
+from collections import Counter
 from datetime import datetime
 from rasterio.windows import Window
 from rasterio.io import MemoryFile
@@ -55,12 +56,21 @@ def getInputPathList(new_img:glam.Image) -> list:
 	input_images.sort()
 	input_images.reverse()
 	input_paths = [i.path for i in input_images]
-	if len(input_paths) != len(all_years):
+	if len(input_paths) < len(all_years):
 		produced_years = [str(img.year) for img in input_images]
 		missing_years = (list(list(set(all_years)-set(produced_years)) + list(set(produced_years)-set(all_years))))
 		err_str = "Matching input files not found for years "
 		for y in missing_years:
 			err_str = err_str + y+", "
+		err_str = err_str.strip(", ")
+		log.warning(err_str)
+	elif len(input_paths) > len(all_years):
+		produced_years = [str(img.year) for img in input_images]
+		counter = Counter(produced_years)
+		err_str = "Multiple matches found for: "
+		for k in counter.keys()
+			if counter[k] >1:
+				err_str += f"{k}:{counter[k]}, "
 		err_str = err_str.strip(", ")
 		log.warning(err_str)
 
