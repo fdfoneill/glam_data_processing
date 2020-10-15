@@ -2586,7 +2586,7 @@ class Image:
 				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_pct}` FROM {table_name}") # as above, but for newcol_pct
 					log.debug(f"-column {newCol_pct} already exists in table {table_name}")
-			except db.exc.InternalError:
+			except (db.exc.InternalError, db.exc.OperationalError):
 				aSql = f"ALTER TABLE {table_name} ADD `{newCol_pct}` float(2)"
 				try:
 					with self.engine.begin() as connection:
@@ -3381,7 +3381,7 @@ class ModisImage(Image):
 				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_pct}` FROM {table_name}") # as above, but for newcol_pct
 				log.debug(f"-column {newCol_pct} already exists in table {table_name}")
-			except db.exc.InternalError:
+			except (db.exc.InternalError, db.exc.OperationalError):
 				log.debug(f"Appending new column {newCol_pct} to table {table_name}")
 				aSql = f"ALTER TABLE {table_name} ADD `{newCol_pct}` float(2)"
 				with self.engine.begin() as connection:
