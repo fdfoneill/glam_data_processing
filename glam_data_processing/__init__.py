@@ -2574,7 +2574,7 @@ class Image:
 				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_val}` FROM {table_name}") # try to select the desired columns
 					log.debug(f"-column {newCol_val} already exists in table {table_name}")
-			except db.exc.InternalError: # if the column does not exist, the attempt to select it will throw an error
+			except (db.exc.InternalError, db.exc.OperationalError): # if the column does not exist, the attempt to select it will throw an error
 				# alter the table to add the desired columns
 				aSql = f"ALTER TABLE {table_name} ADD `{newCol_val}` float(2)"
 				try:
@@ -3371,7 +3371,7 @@ class ModisImage(Image):
 				with self.engine.begin() as connection:
 					connection.execute(f"SELECT `{newCol_val}` FROM {table_name}") # try to select the desired columns
 				log.debug(f"-column {newCol_val} already exists in table {table_name}")
-			except db.exc.InternalError: # if the column does not exist, the attempt to select it will throw an error
+			except (db.exc.InternalError, db.exc.OperationalError): # if the column does not exist, the attempt to select it will throw an error
 				# alter the table to add the desired columns
 				log.debug(f"Appending new column {newCol_val} to table {table_name}")
 				aSql = f"ALTER TABLE {table_name} ADD `{newCol_val}` float(2)"
