@@ -2644,7 +2644,7 @@ class Image:
 						continue
 		except db.exc.OperationalError: # sometimes, the database just randomly conks out. No idea why. This restarts the attempt as many times as needed. Watch out for rogue loops.
 			if retries <= 3:
-				log.warning("WARNING: Lost connection to database. Trying again.")
+				log.exception("WARNING: Lost connection to database. Trying again.")
 				self.uploadStats(stats_tables)
 			else:
 				log.warning("WARNING: Lost connection to database, 3 retries used up. Skipping.")
