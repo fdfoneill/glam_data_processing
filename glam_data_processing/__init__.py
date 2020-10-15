@@ -3387,10 +3387,11 @@ class ModisImage(Image):
 				with self.engine.begin() as connection:
 					connection.execute(aSql)
 			for index, row in df.iterrows():
-				uSql= f"UPDATE {table_name} SET `{newCol_val}`={row['value']} WHERE admin = {row['admin']}"
-				uRows = connection.execute(uSql)
-				uSql= f"UPDATE {table_name} SET `{newCol_pct}`={row['pct']} WHERE admin = {row['admin']}"
 				with self.engine.begin() as connection:
+					uSql= f"UPDATE {table_name} SET `{newCol_val}`={row['value']} WHERE admin = {row['admin']}"
+					uRows = connection.execute(uSql)
+					uSql= f"UPDATE {table_name} SET `{newCol_pct}`={row['pct']} WHERE admin = {row['admin']}"
+				
 					connection.execute(uSql)
 				if uRows.rowcount == 0: # admin does not yet exist in table
 					# append new row
