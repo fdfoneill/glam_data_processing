@@ -40,6 +40,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 		all_years = list(set(all_years+[str(img.year)]))
 		if product in supported_products+["merra-2"]:
 			# we can just use DOY for NDVI products and merra (since merra is daily)
+			output_doy = doy
 			if img.doy == doy:
 				input_images.append(img)
 		elif product == "swi":
@@ -47,6 +48,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 			if min(abs(int(img.doy)-output_doy),(output_doy-int(img.doy)) % 365) <= 2: # 'img' is the closest date from given year to eventual output date
 				input_images.append(img)
 		elif product == "chirps": # must be chirps
+			output_doy = new_image.date
 			if img.date.split("-")[1:] == new_image.date.split("-")[1:]: # tests that month and day are equal
 				input_images.append(img)
 		else:
@@ -59,18 +61,20 @@ def getInputPathList(new_img:glam.Image) -> list:
 	if len(input_paths) < len(all_years):
 		produced_years = [str(img.year) for img in input_images]
 		missing_years = (list(list(set(all_years)-set(produced_years)) + list(set(produced_years)-set(all_years))))
-		err_str = "Matching input files not found for years "
+		err_str = f"Anomaly doy = {output_doy}\nMatching input files not found for the following years:"
 		for y in missing_years:
-			err_str = err_str + y+", "
-		err_str = err_str.strip(", ")
+			err_str = err_str + "\n\t" + y
 		log.warning(err_str)
 	elif len(input_paths) > len(all_years):
 		produced_years = [str(img.year) for img in input_images]
 		counter = Counter(produced_years)
-		err_str = "Multiple matches found for: "
+		err_str = "Multiple matches found for years:"
 		for k in counter.keys():
 			if counter[k] >1:
-				err_str = err_str + f"{k}:{counter[k]}, "
+				err_str = err_str + f"\n\t{k}:{counter[k]}"
+				for img in input_images:
+					if str(img.year) == str(k):
+						err_str = err_str + f"\n\t\t{img.path}"
 		err_str = err_str.strip(", ")
 		log.warning(err_str)
 
