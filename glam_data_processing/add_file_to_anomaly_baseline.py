@@ -16,7 +16,7 @@ import glam_data_processing as glam
 
 def getSwiBaselineDoy(new_img:glam.Image) -> int:
 	for valid_swi_date in range(1,366,5):
-		if min(abs(int(new_img.doy)-valid_swi_date),(int(new_img.doy)+valid_swi_date) % 365) <= 2:
+		if min(abs(int(new_img.doy)-valid_swi_date),(valid_swi_date-int(new_img.doy)) % 365) <= 2:
 			return valid_swi_date
 			
 
@@ -44,7 +44,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 				input_images.append(img)
 		elif product == "swi":
 			output_doy = getSwiBaselineDoy(new_img)
-			if min(abs(int(img.doy)-output_doy),(int(img.doy)+output_doy) % 365) <= 2: # 'img' is the closest date from given year to eventual output date
+			if min(abs(int(img.doy)-output_doy),(output_doy-int(img.doy)) % 365) <= 2: # 'img' is the closest date from given year to eventual output date
 				input_images.append(img)
 		elif product == "chirps": # must be chirps
 			if img.date.split("-")[1:] == new_image.date.split("-")[1:]: # tests that month and day are equal
@@ -70,10 +70,9 @@ def getInputPathList(new_img:glam.Image) -> list:
 		err_str = "Multiple matches found for: "
 		for k in counter.keys():
 			if counter[k] >1:
-				err_str += f"{k}:{counter[k]}, "
+				err_str = err_str + f"{k}:{counter[k]}, "
 		err_str = err_str.strip(", ")
 		log.warning(err_str)
-
 
 	return input_paths
 
