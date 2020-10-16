@@ -268,7 +268,7 @@ def updateData():
 						image.setStatus('statGen',True)
 						speak("--stats generated")
 					# generate anomaly baselines
-					if not args.no_anomaly_baseline and not (image.product in ["chirps-prelim","MOD13Q4N"]):
+					if (not args.no_anomaly_baseline) and (not (image.product in ["chirps-prelim","MOD13Q4N"])):
 						anomaly_args = ["python",anomaly_script,p,"-n","20"]
 						try:
 							subprocess.call(anomaly_args)
