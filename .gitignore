@@ -4,7 +4,9 @@ python-virtual-environments
 venv
 statscode
 temp/*
+*/temp/*
 glam_keys.json
+/src
 
 # distribution / packaging
 bin/

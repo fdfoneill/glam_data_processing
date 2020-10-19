@@ -31,6 +31,7 @@ setup(name='glam_data_processing',
 			'pandas',
 			'terracotta',
 			'sqlalchemy',
+			'pymysql',
 			'gdal'
 			],
 		# tests
@@ -45,7 +46,11 @@ setup(name='glam_data_processing',
 			'console_scripts': [
 				'glamconfigure=glam_data_processing.command_line:setCredentials',
 				'glamupdatedata=glam_data_processing.command_line:updateData',
-				'glaminfo=glam_data_processing.command_line:getInfo'
+				'glamupdatestats=glam_data_processing.command_line:rectifyStats',
+				'glaminfo=glam_data_processing.command_line:getInfo',
+				'glamnewstats=glam_data_processing.generate_new_stats:main',
+				'glamfillarchive=glam_data_processing.command_line:fillArchive',
+				'glamcleanprelim=glam_data_processing.command_line:clean'
 				]
 			}
 		)
