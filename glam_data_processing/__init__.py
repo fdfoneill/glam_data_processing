@@ -945,6 +945,9 @@ class Downloader:
 					mFileName = re.search(ex,pageText).group() # matches desired file name from web page
 				except HTTPError: # if any file in the range is missing, don't generate the mosaic at all
 					return False
+				except AttributeError:
+					log.warning(f"Failed to find Merra-2 URL for {mDate.strftime('%Y-%m-%d')}. We seem to have caught the merra-2 team in the middle of uploading their data... check {pageUrl} to be sure.")
+					return False
 			return True
 
 		def checkChirps(date:str) -> bool:

@@ -32,7 +32,12 @@ setup(name='glam_data_processing',
 			'terracotta',
 			'sqlalchemy',
 			'pymysql',
-			'gdal'
+			'gdal',
+			'dask',
+			'dask.distributed',
+			'xarray',
+			'tlz',
+			'rasterio'
 			],
 		# tests
 		test_suite='nose.collector',
