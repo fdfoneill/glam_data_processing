@@ -127,12 +127,15 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 	"""
 	# start timer
 	start_time = datetime.now()
+	# coerce numeric arguments to correct type
+	n_cores = int(n_cores)
+	block_scale_factor = int(block_scale_factor)
 	# get metadata
 	meta_handle = rasterio.open(product_path,'r')
 	meta_profile = meta_handle.profile
 	## block size
 	if meta_profile['tiled']:
-		blocksize = meta_profile['blockxsize'] * block_scale_factor
+		blocksize =meta_profile['blockxsize'] * block_scale_factor
 	else:
 		log.warning(f"Input file {product_path} is not tiled!")
 		blocksize = 256 * block_scale_factor
