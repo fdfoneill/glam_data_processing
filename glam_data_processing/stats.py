@@ -146,8 +146,8 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 
 	# get windows
 	windows = []
-	print(type(hnum))
-	print(type(blocksize))
+	log.info(type(hnum))
+	log.info(type(blocksize))
 	for hstart in range(0, hnum, blocksize):
 		for vstart in range(0, vnum, blocksize):
 			hwin = blocksize
