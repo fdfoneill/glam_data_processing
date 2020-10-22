@@ -23,6 +23,7 @@ def getSwiBaselineDoy(new_img:glam.Image) -> int:
 def getInputPathList(new_img:glam.Image) -> list:
 	data_directory = os.path.dirname(new_img.path)
 	product = new_img.product
+	collection = new_img.collection
 	input_images = []
 
 	allFiles = glob.glob(os.path.join(data_directory,"*.tif"))
@@ -41,7 +42,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 		if product in supported_products+["merra-2"]:
 			# we can just use DOY for NDVI products and merra (since merra is daily)
 			output_doy = doy
-			if img.doy == doy:
+			if (img.doy == doy) and (img.collection == collection): # check that min/mean/max matches
 				input_images.append(img)
 		elif product == "swi":
 			output_doy = getSwiBaselineDoy(new_img)
