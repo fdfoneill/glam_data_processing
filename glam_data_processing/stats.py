@@ -67,7 +67,7 @@ def _mp_worker(args:tuple) -> dict:
 		arable_pixels = int((admin_data[(admin_data == admin_code) & (mask_data == 1)]).size)
 		if arable_pixels == 0:
 			continue
-		masked = np.array(product_data[(product_data != product_noDataVal) & (mask_data != mask_noDataVal) & (admin_data == admin_code)], dtype='int64')
+		masked = np.array(product_data[(product_data != product_noDataVal) & (mask_data == 1) & (admin_data == admin_code)], dtype='int64')
 		percent_arable = (float(masked.size) / float(arable_pixels)) * 100
 		value = (masked.mean() if (masked.size > 0) else 0)
 		out_dict[admin_code] = {"value":value,"arable_pixels":arable_pixels,"percent_arable":percent_arable}
