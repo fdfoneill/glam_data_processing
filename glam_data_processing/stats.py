@@ -53,13 +53,18 @@ def _mp_worker(args:tuple) -> dict:
 	mask_data = mask_handle.read(1,window=targetwindow)
 	admin_data = admin_handle.read(1,window=targetwindow)
 
+	# close handles
+	product_handle.close()
+	mask_handle.close()
+	admin_handle.close()
+
 	# create empty output dictionary
 	out_dict = {}
 
 	# loop over all admin codes present in admin_data
 	uniqueadmins = np.unique(admin_data[admin_data != admin_noDataVal]) # exclude nodata value
 	for admin_code in uniqueadmins:
-		arable_pixels = int((admin_data[(admin_data == admin_code) & (mask_data != product_noDataVal)]).size)
+		arable_pixels = int((admin_data[(admin_data == admin_code) & (mask_data == 1)]).size)
 		if arable_pixels == 0:
 			continue
 		masked = np.array(product_data[(product_data != product_noDataVal) & (mask_data != mask_noDataVal) & (admin_data == admin_code)], dtype='int64')
@@ -104,13 +109,47 @@ def _update(stored_dict,this_dict) -> dict:
 		## update arable_pixels
 		arable_pixels = stored_info['arable_pixels'] + this_info['arable_pixels']
 		## update percent_arable
-		percent_arable = (stored_info['percent_arable'] * stored_weight) + (this_info['percent_arable'] * this_weight)
+		percent_arable = (arable_visible_stored + arable_visible_this) / arable_pixels
+		#percent_arable = (stored_info['percent_arable'] * stored_weight) + (this_info['percent_arable'] * this_weight)
 		out_dict[k] = {'value':value,'arable_pixels':arable_pixels,'percent_arable':percent_arable}
 	return out_dict
 
 
+def get_validBounds(raster_path:str,mask_or_admin = "MASK") -> tuple:
+	"""A function to find the boundaries of a mask raster file's non-nodata pixels
 
-def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_scale_factor=1) -> dict:
+	TOO SLOW FOR BIG FILES
+
+	Returns a tuple of (top,left,bottom,right) bounding box indices
+
+	Parameters
+	----------
+	raster_path:str
+		Full path to mask or admin file on disk
+	mask_or_admin:str
+		Choices are "MASK" or "ADMIN"; determines whether the function
+		searches for '1' values (mask) or non-nodata values (admin)
+	"""
+	log.warning("get_validBounds() takes too much memory for large raster files")
+	with rasterio.open(raster_path,'r') as raster_handle:
+		width = raster_handle.width
+		height = raster_handle.height
+		raster_nodataValue = raster_handle.profile['nodata']
+		raster_data = raster_handle.read()
+
+	raster_data = raster_data.reshape(height,width) # flatten third dimension
+	if mask_or_admin == "MASK":
+		valid_indices = np.where(raster_data == 1)
+	elif mask_or_admin == "ADMIN":
+		valid_indices = np.where(raster_data != raster_nodataValue)
+	valid_index_list = list(zip(valid_indices[0], valid_indices[1]))
+	ul = valid_index_list[0]
+	lr = valid_index_list[-1]
+
+	return (*ul,*lr)
+
+
+def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_scale_factor=8) -> dict:
 	"""A function for calculating zonal statistics on a raster image
 
 	Returns a dictionary of the form:
@@ -124,6 +163,8 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 		Path to crop mask dataset on disk
 	admin_path:str
 		Path to admin dataset on disk
+	n_cores:int
+	block_scale_factor:int
 	"""
 	# start timer
 	start_time = datetime.now()
@@ -131,26 +172,22 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 	n_cores = int(n_cores)
 	block_scale_factor = int(block_scale_factor)
 	# get metadata
-	meta_handle = rasterio.open(product_path,'r')
-	meta_profile = meta_handle.profile
-	## block size
-	if meta_profile['tiled']:
-		blocksize =meta_profile['blockxsize'] * block_scale_factor
-	else:
-		log.warning(f"Input file {product_path} is not tiled!")
-		blocksize = 256 * block_scale_factor
-	## raster dimensions
-	hnum = meta_handle.width
-	vnum = meta_handle.height
-	## close and delete open rasterio objects
-	meta_handle.close()
-	del meta_handle
-	del meta_profile
+	with rasterio.open(product_path,'r') as meta_handle:
+		meta_profile = meta_handle.profile
+		## block size
+		if meta_profile['tiled']:
+			blocksize =meta_profile['blockxsize'] * block_scale_factor
+		else:
+			log.warning(f"Input file {product_path} is not tiled!")
+			blocksize = 256 * block_scale_factor
+		## raster dimensions
+		hnum = meta_handle.width
+		vnum = meta_handle.height
 
 	# get windows
 	windows = []
-	log.info(type(hnum))
-	log.info(type(blocksize))
+	# log.info(type(hnum))
+	# log.info(type(blocksize))
 	for hstart in range(0, hnum, blocksize):
 		for vstart in range(0, vnum, blocksize):
 			hwin = blocksize
