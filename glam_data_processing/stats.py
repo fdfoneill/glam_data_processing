@@ -109,7 +109,7 @@ def _update(stored_dict,this_dict) -> dict:
 		## update arable_pixels
 		arable_pixels = stored_info['arable_pixels'] + this_info['arable_pixels']
 		## update percent_arable
-		percent_arable = (arable_visible_stored + arable_visible_this) / arable_pixels
+		percent_arable = ((arable_visible_stored + arable_visible_this) / arable_pixels) * 100
 		#percent_arable = (stored_info['percent_arable'] * stored_weight) + (this_info['percent_arable'] * this_weight)
 		out_dict[k] = {'value':value,'arable_pixels':arable_pixels,'percent_arable':percent_arable}
 	return out_dict
