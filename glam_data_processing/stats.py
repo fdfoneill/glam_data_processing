@@ -93,22 +93,26 @@ def _update(stored_dict,this_dict) -> dict:
 		except KeyError: # if stored_dict has no info for zone k (new zone in this window), set it equal to the info from this_dict
 			out_dict[k] = this_info
 			continue
-		# weighted mean
+		# calculate number of visible arable pixels for both dicts by multiplying arable_pixels with percent_arable
 		arable_visible_stored = (stored_info["arable_pixels"] * stored_info["percent_arable"] / 100.0)
 		arable_visible_this = (this_info["arable_pixels"] * this_info["percent_arable"] / 100.0)
 		try:
+			# weight of stored_dict value is the ratio of its visible arable pixels to the total number of visible arable pixels
 			stored_weight = arable_visible_stored / (arable_visible_stored + arable_visible_this)
 		except ZeroDivisionError:
+			# if no visible pixels at all, weight everything at 0
 			stored_weight = 0
 		try:
+			# weight of this_dict value is the ratio of its visible arable pixels to the total number of visible arable pixels
 			this_weight = arable_visible_this / (arable_visible_this + arable_visible_stored)
 		except ZeroDivisionError:
+			# if the total visible arable pixels are 0, everything gets weight 0
 			this_weight = 0
-		## update value
+		## weighted mean value
 		value = (stored_info['value'] * stored_weight) + (this_info['value'] * this_weight)
-		## update arable_pixels
+		## sum of arable pixels
 		arable_pixels = stored_info['arable_pixels'] + this_info['arable_pixels']
-		## update percent_arable
+		## directly recalculate total percent arable from sum of arable_visible divided by arable_pixels
 		percent_arable = ((arable_visible_stored + arable_visible_this) / arable_pixels) * 100
 		#percent_arable = (stored_info['percent_arable'] * stored_weight) + (this_info['percent_arable'] * this_weight)
 		out_dict[k] = {'value':value,'arable_pixels':arable_pixels,'percent_arable':percent_arable}
@@ -164,7 +168,11 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 	admin_path:str
 		Path to admin dataset on disk
 	n_cores:int
+		Number of cores to use for parallel processing. Default is 1
 	block_scale_factor:int
+		Relative size of processing windows compared to product_path native block
+		size. Default is 8, calculated to be optimal for all n_cores (1-50) on 
+		GEOG cluster node 18
 	"""
 	# start timer
 	start_time = datetime.now()
@@ -216,6 +224,6 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 
 	# note final time
 	log.debug(f"Finished parallel processing in {datetime.now()-checkpoint_1_time}.")
-	log.info(f"Finished processing {product_path} x {mask_path} x {admin_path} in {datetime.now()-start_time}.")
+	log.debug(f"Finished processing {product_path} x {mask_path} x {admin_path} in {datetime.now()-start_time}.")
 
 	return final_output
