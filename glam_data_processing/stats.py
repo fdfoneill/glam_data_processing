@@ -119,7 +119,7 @@ def _update(stored_dict,this_dict) -> dict:
 	return out_dict
 
 
-def get_validBounds(raster_path:str,mask_or_admin = "MASK") -> tuple:
+def get_validBounds(raster_path:str, mask_or_admin: str = "MASK") -> tuple:
 	"""A function to find the boundaries of a mask raster file's non-nodata pixels
 
 	TOO SLOW FOR BIG FILES
@@ -153,7 +153,7 @@ def get_validBounds(raster_path:str,mask_or_admin = "MASK") -> tuple:
 	return (*ul,*lr)
 
 
-def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_scale_factor=8) -> dict:
+def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1, block_scale_factor: int = 8, default_block_size: int = 256) -> dict:
 	"""A function for calculating zonal statistics on a raster image
 
 	Returns a dictionary of the form:
@@ -173,6 +173,10 @@ def zonalStats(product_path:str,mask_path:str,admin_path:str,n_cores=1,block_sca
 		Relative size of processing windows compared to product_path native block
 		size. Default is 8, calculated to be optimal for all n_cores (1-50) on 
 		GEOG cluster node 18
+	default_block_size:int
+		If product_path is not tiled, this argument is used as the block size. In
+		that case, windows will be of size (default_block size * block_scale_factor)
+		on each side.
 	"""
 	# start timer
 	start_time = datetime.now()
