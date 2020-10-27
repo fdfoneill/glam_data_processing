@@ -11,7 +11,9 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 #logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 
-import sys, glob, gdal, json, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
+import boto3, collections, ftplib, glob, gdal, gzip, json, math, octvi, re, requests, shutil, subprocess, sys, urllib
+from botocore.exceptions import ClientError
+boto3.set_stream_logger('botocore', level='INFO')
 from datetime import datetime
 from ftplib import FTP
 from gdalnumeric import *
@@ -21,8 +23,7 @@ from osgeo import osr
 from urllib.error import URLError
 from urllib.request import urlopen, Request, URLError, HTTPError
 
-from glam_data_processing import ancillary_products
-from glam_data_processing.exceptions import BadInputError, UnavailableError
+from glam_data_processing.exceptions import BadInputError, NoCredentialsError, UnavailableError
 
 ## getting credentials
 
@@ -654,3 +655,92 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			raise BadInputError("Date must be of format YYYY-MM-DD or YYYY.DOY")
 
 	return actions[product](date=date, out_dir=output_directory, file_name_override = file_name_override, credentials=credentials)
+
+
+def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
+	"""
+	Pulls desired product x date combination from S3 bucket and downloads to out_dir
+	Downloaded files are COGs in sinusoidal projection
+	Returns tuple of downloaded product path strings, or empty tuple on failure
+	
+	...
+
+	Parameters
+	----------
+	product:str
+		string representation of desired product type ('merra-2','chirps','swi')
+	date:str
+		string representation in format "%Y-%m-%d" of desired product date
+	out_dir:str
+		path to output directory, where the cloud-optimized geoTiff will be stored
+	"""
+
+	## set up boto3 logger, client, and bucket name
+	try:
+		s3_client = boto3.client('s3',
+			aws_access_key_id=os.environ['AWS_accessKeyId'],
+			aws_secret_access_key=os.environ['AWS_secretAccessKey']
+			)
+	except KeyError:
+		raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'glamconfigure' or 'aws configure' on the command line.")
+	s3_bucket = 'glam-tc-data'
+
+	## define output list to be coerced to tuple and returned
+	results = []
+
+	## if the requested product is merra-2, check whether the user specified a collection
+	if product == 'merra-2' and collection == 0:
+		for metric in ("mean","min","max"):
+			s3_key = f"rasters/{product}.{date}.{metric}.tif"
+			outFile = os.path.join(out_dir,f"{product}.{date}.{metric}.tif")
+			results.append(outFile)
+			try:
+				s3_client.download_file(s3_bucket,s3_key,outFile)
+			except ClientError:
+				log.error("File not available on S3")
+				return ()
+			except Exception:
+				log.exception("File download from S3 failed")
+				return ()
+	elif product == 'merra-2':
+		s3_key = f"rasters/{product}.{date}.{collection}.tif"
+		outFile = os.path.join(out_dir,f"{product}.{date}.{collection}.tif")
+		results.append(outFile)
+		try:
+			s3_client.download_file(s3_bucket,s3_key,outFile)
+		except ClientError:
+			log.error("File not available on S3")
+			return ()
+		except Exception:
+			log.exception("File download from S3 failed")
+			return ()
+	
+	elif product in ["swi","chirps","chirps-prelim"]:
+		s3_key = f"rasters/{product}.{date}.tif"
+		outFile = os.path.join(out_dir,f"{product}.{date}.tif")
+		results.append(outFile)
+		try:
+			s3_client.download_file(s3_bucket,s3_key,outFile)
+		except ClientError:
+			log.error("File not available on S3")
+			return ()
+		except Exception:
+			log.exception("File download from S3 failed")
+			return ()
+	else:
+		year = datetime.strptime(date,"%Y-%m-%d").strftime("%Y")
+		doy = datetime.strptime(date,"%Y-%m-%d").strftime("%j")
+		s3_key = f"rasters/{product}.{year}.{doy}.tif"
+		outFile = os.path.join(out_dir,f"{product}.{year}.{doy}.tif")
+		results.append(outFile)
+		try:
+			s3_client.download_file(s3_bucket,s3_key,outFile)
+		except ClientError:
+			log.error("File not available on S3")
+			return ()
+		except Exception:
+			log.exception("File download from S3 failed")
+			return ()
+
+	## return tuple of file paths
+	return tuple(results)
