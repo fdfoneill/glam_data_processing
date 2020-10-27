@@ -38,25 +38,29 @@ def _mp_worker(args:tuple) -> dict:
 	"""
 	targetwindow, product_path, mask_path, admin_path = args
 
-	# define handles
+	if "nomask" in mask_path:
+		mask_path = None
+
+	# get product raster info
 	product_handle = rasterio.open(product_path,'r')
-	mask_handle = rasterio.open(mask_path,'r')
-	admin_handle = rasterio.open(admin_path,'r')
-
-	# get nodata
 	product_noDataVal = product_handle.meta['nodata']
-	mask_noDataVal = mask_handle.meta['nodata']
-	admin_noDataVal = admin_handle.meta['nodata']
-
-	# define data
 	product_data = product_handle.read(1,window=targetwindow)
-	mask_data = mask_handle.read(1,window=targetwindow)
-	admin_data = admin_handle.read(1,window=targetwindow)
-
-	# close handles
 	product_handle.close()
-	mask_handle.close()
-	admin_handle.close()
+
+	# get mask raster info
+	if mask_path is not None:
+		mask_handle = rasterio.open(mask_path,'r')
+		mask_noDataVal = mask_handle.meta['nodata']
+		mask_data = mask_handle.read(1,window=targetwindow)
+		mask_handle.close()
+	else:
+		mask_data = np.full(product_data.shape, 1)
+
+	# get admin raster info
+	admin_handle = rasterio.open(admin_path,'r')
+	admin_noDataVal = admin_handle.meta['nodata']	
+	admin_data = admin_handle.read(1,window=targetwindow)	
+	admin_handle.close()	
 
 	# create empty output dictionary
 	out_dict = {}
