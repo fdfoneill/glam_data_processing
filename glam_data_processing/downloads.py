@@ -14,6 +14,8 @@ log = logging.getLogger(__name__)
 import sys, glob, gdal, json, math, gzip, octvi, shutil, requests, ftplib, re, subprocess, collections, urllib
 from datetime import datetime
 from ftplib import FTP
+from gdalnumeric import *
+gdal.UseExceptions()
 import numpy as np
 from osgeo import osr
 from urllib.error import URLError
