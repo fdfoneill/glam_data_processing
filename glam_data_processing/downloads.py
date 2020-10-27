@@ -657,7 +657,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 	return actions[product](date=date, out_dir=output_directory, file_name_override = file_name_override, credentials=credentials)
 
 
-def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
+def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 	"""
 	Pulls desired product x date combination from S3 bucket and downloads to out_dir
 	Downloaded files are COGs in sinusoidal projection
@@ -670,7 +670,7 @@ def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
 	product:str
 		string representation of desired product type ('merra-2','chirps','swi')
 	date:str
-		string representation in format "%Y-%m-%d" of desired product date
+		string representation in format YYYY.MM.DD or YYYY.DOY of desired product date
 	out_dir:str
 		path to output directory, where the cloud-optimized geoTiff will be stored
 	"""
@@ -687,6 +687,15 @@ def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
 
 	## define output list to be coerced to tuple and returned
 	results = []
+
+	## format date to YYYY-MM-DD
+	try:
+		date = datetime.strptime(date,"%Y-%m-%d").strftime("%Y-%m-%d")
+	except:
+		try:
+			date = datetime.strptime(date,"%Y.%j").strftime("%Y-%m-%d")
+		except:
+			raise BadInputError("Date must be of format YYYY-MM-DD or YYYY.DOY")
 
 	## if the requested product is merra-2, check whether the user specified a collection
 	if product == 'merra-2' and collection == 0:
@@ -727,9 +736,8 @@ def pullFromS3(self,product:str,date:str,out_dir:str,collection=0) -> tuple:
 		except Exception:
 			log.exception("File download from S3 failed")
 			return ()
-	else:
-		year = datetime.strptime(date,"%Y-%m-%d").strftime("%Y")
-		doy = datetime.strptime(date,"%Y-%m-%d").strftime("%j")
+	else: # it's an NDVI product
+		year, doy = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j").split(".")
 		s3_key = f"rasters/{product}.{year}.{doy}.tif"
 		outFile = os.path.join(out_dir,f"{product}.{year}.{doy}.tif")
 		results.append(outFile)
