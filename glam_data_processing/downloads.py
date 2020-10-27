@@ -28,6 +28,7 @@ from glam_data_processing.exceptions import BadInputError, NoCredentialsError, U
 ## getting credentials
 
 def readCredentialsFile() -> None:
+	"""Reads merra / swi usernames and passwords from credentials file into environment variables"""
 	#log.info(__file__)
 	credDir = os.path.dirname(os.path.dirname(__file__))
 	credFile = os.path.join(credDir,"glam_keys.json")
@@ -38,7 +39,7 @@ def readCredentialsFile() -> None:
 		log.debug(f"Found credentials file: {credFile}")
 	except FileNotFoundError:
 		raise NoCredentialsError("Credentials file ('glam_keys.json') not found.")
-	for k in ["merrausername","merrapassword","swiusername","swipassword","glam_mysql_user","glam_mysql_pass"]:
+	for k in ["merrausername","merrapassword","swiusername","swipassword"]:
 		try:
 			log.debug(f"Adding variable to environment: {k}")
 			os.environ[k] = keys[k]
@@ -752,3 +753,4 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 
 	## return tuple of file paths
 	return tuple(results)
+
