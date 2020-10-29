@@ -370,8 +370,8 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth:int = 10, 
 	# get windows and valid range
 	windows = getWindows(hnum,vnum, blocksize)
 	histogram_min, histogram_max = getValidRange(dtype)
-	log.info(f"Histogram range: {histogram_min}, {histogram_max}")
-	log.info(f"Binwidth: {binwidth}")
+	# log.info(f"Histogram range: {histogram_min}, {histogram_max}")
+	# log.info(f"Binwidth: {binwidth}")
 
 	# compile parallel arguments into tuples (functions passed to Pool.map() must take exactly one argument)
 	parallel_args = [(w, raster_path, histogram_min, histogram_max, binwidth) for w in windows]
