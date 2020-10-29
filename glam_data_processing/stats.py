@@ -304,7 +304,7 @@ def _mp_worker_PCT(args:tuple) -> np.array:
 	return np.histogram(raster_data, bins=n_bins, range=(histogram_min, histogram_max))[0]
 
 
-def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_cores:int = 1, block_scale_factor:int = 8, default_block_size: int = 256, time:bool = False) -> list:
+def percentiles(raster_path:str, percentiles:list = [10,90], binwidth:int = 10, n_cores:int = 1, block_scale_factor:int = 8, default_block_size: int = 256, time:bool = False) -> list:
 	"""Function that approximates percentiles of a raster, leveraging multiple cores
 
 	***
@@ -370,6 +370,8 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_co
 	# get windows and valid range
 	windows = getWindows(hnum,vnum, blocksize)
 	histogram_min, histogram_max = getValidRange(dtype)
+	log.info(f"Histogram range: {histogram_min}, {histogram_max}")
+	log.info(f"Binwidth: {binwidth}")
 
 	# compile parallel arguments into tuples (functions passed to Pool.map() must take exactly one argument)
 	parallel_args = [(w, raster_path, histogram_min, histogram_max, binwidth) for w in windows]
