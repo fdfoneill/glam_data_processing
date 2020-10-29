@@ -39,19 +39,34 @@ def getWindows(width, height, blocksize) -> list:
 
 
 def getValidRange(dtype:str) -> tuple:
-	validRange = {
-		"byte":(-128,127),
-		"uint8":(0,255),
-		"int8":(-128,127),
-		"uint16":(0,65535),
-		"int16":(-32768,32767),
-		"uint32":(0,4294967295),
-		"int32":(-2147483648,2147483647)
-	}
 	try:
-		return validRange[dtype]
-	except KeyError:
-		log.exception(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
+		if (dtype == "byte") or ("int" in dtype):
+			try:
+				return (np.iinfo(dtype).min, np.iinfo(dtype).max)
+			except:
+				raise ValueError
+		elif ("float" in dtype):
+			try:
+				return (np.finfo(dtype).min, np.finfo(dtype).max)
+			except:
+				raise ValueError
+		else:
+			raise ValueError
+	except ValueError:
+		raise ValueError(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
+	# validRange = {
+	# 	"byte":(-128,127),
+	# 	"uint8":(0,255),
+	# 	"int8":(-128,127),
+	# 	"uint16":(0,65535),
+	# 	"int16":(-32768,32767),
+	# 	"uint32":(0,4294967295),
+	# 	"int32":(-2147483648,2147483647)
+	# }
+	# try:
+	# 	return validRange[dtype]
+	# except KeyError:
+	# 	log.exception(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
 
 ##################################################################################################################
 
@@ -351,7 +366,7 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_co
 	histogram_min, histogram_max = getValidRange(dtype)
 
 	# compile parallel arguments into tuples (functions passed to Pool.map() must take exactly one argument)
-	parallel_args = [(w, raster_path, histogram_min, histogram_max, binsize) for w in windows]
+	parallel_args = [(w, raster_path, histogram_min, histogram_max, binwidth) for w in windows]
 
 	# do multiprocessing
 	out_counts, out_bins = np.histogram(np.array([0]), bins=n_bins, range=(histogram_min, histogram_max)) # tuple of (counts, bin_boundaries). Note that len(bin_boundaries) == ( len(counts) + 1 )
