@@ -20,7 +20,45 @@ from multiprocessing import Pool
 from rasterio.windows import Window
 
 
-def _mp_worker(args:tuple) -> dict:
+# repeatedly used functions and objects
+
+def getWindows(width, height, blocksize) -> list:
+	hnum, vnum = width, height
+	windows = []
+	for hstart in range(0, hnum, blocksize):
+		for vstart in range(0, vnum, blocksize):
+			hwin = blocksize
+			vwin = blocksize
+			if ((hstart + blocksize) > hnum):
+				hwin = (hnum % blocksize)
+			if ((vstart + blocksize) > vnum):
+				vwin = (vnum % blocksize)
+			targetwindow = Window(hstart, vstart, hwin, vwin)
+			windows += [targetwindow]
+	return windows
+
+
+def getValidRange(dtype:str) -> tuple:
+	validRange = {
+		"byte":(-128,127),
+		"uint8":(0,255),
+		"int8":(-128,127),
+		"uint16":(0,65535),
+		"int16":(-32768,32767),
+		"uint32":(0,4294967295),
+		"int32":(-2147483648,2147483647)
+	}
+	try:
+		return validRange[dtype]
+	except KeyError:
+		log.exception(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
+
+##################################################################################################################
+
+
+# ZONAL STATS and helper functions 
+
+def _mp_worker_ZS(args:tuple) -> dict:
 	"""A function for use with the multiprocessing
 	package, passed to each worker.
 
@@ -79,7 +117,7 @@ def _mp_worker(args:tuple) -> dict:
 	return out_dict
 
 
-def _update(stored_dict,this_dict) -> dict:
+def _update_ZS(stored_dict,this_dict) -> dict:
 	"""Updates stats dictionary with values from a new window result
 
 	Parameters
@@ -123,41 +161,7 @@ def _update(stored_dict,this_dict) -> dict:
 	return out_dict
 
 
-def get_validBounds(raster_path:str, mask_or_admin: str = "MASK") -> tuple:
-	"""A function to find the boundaries of a mask raster file's non-nodata pixels
-
-	TOO SLOW FOR BIG FILES
-
-	Returns a tuple of (top,left,bottom,right) bounding box indices
-
-	Parameters
-	----------
-	raster_path:str
-		Full path to mask or admin file on disk
-	mask_or_admin:str
-		Choices are "MASK" or "ADMIN"; determines whether the function
-		searches for '1' values (mask) or non-nodata values (admin)
-	"""
-	log.warning("get_validBounds() takes too much memory for large raster files")
-	with rasterio.open(raster_path,'r') as raster_handle:
-		width = raster_handle.width
-		height = raster_handle.height
-		raster_nodataValue = raster_handle.profile['nodata']
-		raster_data = raster_handle.read()
-
-	raster_data = raster_data.reshape(height,width) # flatten third dimension
-	if mask_or_admin == "MASK":
-		valid_indices = np.where(raster_data == 1)
-	elif mask_or_admin == "ADMIN":
-		valid_indices = np.where(raster_data != raster_nodataValue)
-	valid_index_list = list(zip(valid_indices[0], valid_indices[1]))
-	ul = valid_index_list[0]
-	lr = valid_index_list[-1]
-
-	return (*ul,*lr)
-
-
-def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1, block_scale_factor: int = 8, default_block_size: int = 256) -> dict:
+def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1, block_scale_factor: int = 8, default_block_size: int = 256, time:bool = False) -> dict:
 	"""A function for calculating zonal statistics on a raster image
 
 	Returns a dictionary of the form:
@@ -181,6 +185,8 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 		If product_path is not tiled, this argument is used as the block size. In
 		that case, windows will be of size (default_block size * block_scale_factor)
 		on each side.
+	time:bool
+		Whether to log the time taken to return. Default false
 	"""
 	# start timer
 	start_time = datetime.now()
@@ -195,25 +201,26 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 			blocksize =meta_profile['blockxsize'] * block_scale_factor
 		else:
 			log.warning(f"Input file {product_path} is not tiled!")
-			blocksize = 256 * block_scale_factor
+			blocksize = default_block_size * block_scale_factor
 		## raster dimensions
 		hnum = meta_handle.width
 		vnum = meta_handle.height
 
 	# get windows
-	windows = []
-	# log.info(type(hnum))
-	# log.info(type(blocksize))
-	for hstart in range(0, hnum, blocksize):
-		for vstart in range(0, vnum, blocksize):
-			hwin = blocksize
-			vwin = blocksize
-			if ((hstart + blocksize) > hnum):
-				hwin = (hnum % blocksize)
-			if ((vstart + blocksize) > vnum):
-				vwin = (vnum % blocksize)
-			targetwindow = Window(hstart, vstart, hwin, vwin)
-			windows += [targetwindow]
+	window = getWindows(hnum, vnum, blocksize)
+	# windows = []
+	# # log.info(type(hnum))
+	# # log.info(type(blocksize))
+	# for hstart in range(0, hnum, blocksize):
+	# 	for vstart in range(0, vnum, blocksize):
+	# 		hwin = blocksize
+	# 		vwin = blocksize
+	# 		if ((hstart + blocksize) > hnum):
+	# 			hwin = (hnum % blocksize)
+	# 		if ((vstart + blocksize) > vnum):
+	# 			vwin = (vnum % blocksize)
+	# 		targetwindow = Window(hstart, vstart, hwin, vwin)
+	# 		windows += [targetwindow]
 
 	# generate parallel args
 	parallel_args = [(w, product_path, mask_path, admin_path) for w in windows]
@@ -225,13 +232,149 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 	# do parallel
 	final_output = {}
 	p = Pool(processes=n_cores)
-	for window_output in p.map(_mp_worker, parallel_args):
-		_update(final_output, window_output)
+	for window_output in p.map(_mp_worker_ZS, parallel_args):
+		_update_ZS(final_output, window_output)
 	p.close()
 	p.join()
 
 	# note final time
 	log.debug(f"Finished parallel processing in {datetime.now()-checkpoint_1_time}.")
-	log.debug(f"Finished processing {product_path} x {mask_path} x {admin_path} in {datetime.now()-start_time}.")
+	if time:
+		log.info(f"Finished processing {product_path} x {mask_path} x {admin_path} in {datetime.now()-start_time}.")
+	else:
+		log.debug(f"Finished processing {product_path} x {mask_path} x {admin_path} in {datetime.now()-start_time}.")
 
 	return final_output
+
+
+########################################################################################################################################################
+
+# PERCENTILES
+
+def _mp_worker_PCT(args:tuple) -> np.array:
+	"""A multiprocessing worker function to extract the histogram of a raster window
+
+	***
+
+	Parameters
+	----------
+	args:tuple
+		Tuple of the following parameters:
+			targetwindow
+			raster_path
+			histogram_min
+			histogram_max
+			binsize
+
+	Returns
+	-------
+	first item of histogram of a windowed read of raster_path using targetwindow, with bins
+	of number and size determined by histogram_min/max and binsize passed
+	"""
+
+	# extract arguments
+	targetwindow, raster_path, histogram_min, histogram_max, binsize = args
+
+	# calculate number of bins
+	n_bins = (histogram_max - histogram_min) / binsize
+
+
+	# get data from raster
+	raster_handle = rasterio.open(raster_path,'r')
+	raster_noDataVal = raster_handle.meta['nodata']
+	raster_data = raster_handle.read(1,window=targetwindow)
+	raster_handle.close()
+
+	# calculate and return histogram
+	return np.histogram(raster_data, bins=n_bins, range=(histogram_min, histogram_max))[0]
+
+
+def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_cores:int = 1, block_scale_factor:int = 8, default_block_size: int = 256, time:bool = False) -> list:
+	"""Function that approximates percentiles of a raster, leveraging multiple cores
+
+	***
+
+	Parameters
+	----------
+	raster_path:str
+		Path to raster file on disk
+	percentiles:list
+		List of desired percentiles as integers. Default is [10, 90]. Determines
+		which percentile values will be returned
+	binwidth:int
+		Width of histogram bins used to calculate percentiles; larger bins improves
+		speed at the cost of precision
+	n_cores:int
+		How many processers to use. Default 1
+	block_scale_factor:int
+		Amount by which to scale native blocksize of raster file for the purposes
+		of windowed reads. Default 8
+	default_block_size:int
+		If product_path is not tiled, this argument is used as the block size. In
+		that case, windows will be of size (default_block size * block_scale_factor)
+		on each side.
+	time:bool
+		Whether to log the time taken to return. Default false
+
+	Returns
+	-------
+	List of percentile values, corresponding to the integers passed as the
+	'percentiles' parameter
+	"""
+
+	startTime = datetime.now()
+
+	# validate inputs
+	n_cores = int(n_cores)
+	block_scale_factor = int(block_scale_factor)
+	for p in percentiles:
+		if (p < 0) or (p > 100):
+			raise ValueError("All values in list of 'percentiles' must be between 0 and 100")
+
+	# get metadata from raster
+	with rasterio.open(raster_path, 'r') as meta_handle:
+		meta_profile = meta_handle.profile
+		## block size
+		if meta_profile['tiled']:
+			blocksize =meta_profile['blockxsize'] * int(block_scale_factor)
+		else:
+			log.warning(f"Input file {product_path} is not tiled!")
+			blocksize = default_block_size * int(block_scale_factor)
+		## raster dimensions
+		hnum = meta_handle.width
+		vnum = meta_handle.height
+		## data type
+		dtype = meta_profile['dtype']
+
+	# get windows and valid range
+	windows = getWindows(hnum,vnum, blocksize)
+	histogram_min, histogram_max = getValidRange(dtype)
+
+	# compile parallel arguments into tuples (functions passed to Pool.map() must take exactly one argument)
+	parallel_args = [(w, raster_path, histogram_min, histogram_max, binsize) for w in windows]
+
+	# do multiprocessing
+	out_counts, out_bins = np.histogram(np.array([0]), bins=n_bins, range=(histogram_min, histogram_max)) # tuple of (counts, bin_boundaries). Note that len(bin_boundaries) == ( len(counts) + 1 )
+	p = Pool(processes=int(n_cores))
+	for window_counts in p.map(_mp_worker_PCT, parallel_args):
+		out_counts = out_counts + window_counts
+	p.close()
+	p.join()
+
+	# calculate desired percentiles
+	out_values
+	percentile_index = 0
+	bin_index = 0
+	total_sum = sum(out_counts)
+	progressive_sum = 0
+	while  (percentile_index < len(percentiles)): # break loop when we either run out of bins (shouldn't happen!) or calculate all desired percentiles
+		progressive_sum += out_counts[bin_index] # update progressive_sum
+		current_percentile = (progressive_sum / total_sum) * 100 # get the current percentile we're at
+		if current_percentile >= percentiles[percentile_index]: # check current percentile vs. the next threshold in the list of "percentiles" passed
+			out_values.append( ( out_bins[bin_index] + out_bins[bin_index + 1] ) / 2 ) # if triggered, append the average of current bin to the output list
+			percentile_index += 1 # increment percentile index
+		bin_index += 1 # increment bin index
+		if (bin_index >= len(out_counts)):
+			raise ValueError("Ran out of bins before reaching all desired percentiles! Check algorithm.")
+	
+	return out_values
