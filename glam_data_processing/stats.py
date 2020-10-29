@@ -386,7 +386,7 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth:int = 10, 
 	p.join()
 
 	# calculate desired percentiles
-	out_values
+	out_values = []
 	percentile_index = 0
 	bin_index = 0
 	total_sum = sum(out_counts)
