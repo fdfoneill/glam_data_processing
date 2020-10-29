@@ -300,6 +300,9 @@ def _mp_worker_PCT(args:tuple) -> np.array:
 	raster_data = raster_handle.read(1,window=targetwindow)
 	raster_handle.close()
 
+	# mask
+	raster_data = raster_data[raster_data != raster_noDataVal]
+
 	# calculate and return histogram
 	return np.histogram(raster_data, bins=n_bins, range=(histogram_min, histogram_max))[0]
 
