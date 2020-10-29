@@ -340,9 +340,15 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_co
 	startTime = datetime.now()
 
 	# validate inputs
+	binwidth = int(binwidth)
 	n_cores = int(n_cores)
 	block_scale_factor = int(block_scale_factor)
+	default_block_size = int(default_block_size)
 	for p in percentiles:
+		try:
+			assert (type(p) == int) or (type(p) == float)
+		except AssertionError:
+			raise ValueError("All values in list of 'percentiles' must be integers or floats")
 		if (p < 0) or (p > 100):
 			raise ValueError("All values in list of 'percentiles' must be between 0 and 100")
 
