@@ -291,7 +291,7 @@ def _mp_worker_PCT(args:tuple) -> np.array:
 	targetwindow, raster_path, histogram_min, histogram_max, binwidth = args
 
 	# calculate number of bins
-	n_bins = (histogram_max - histogram_min) / binwidth
+	n_bins = int(floor((histogram_max - histogram_min) / binwidth))
 
 
 	# get data from raster
@@ -375,7 +375,7 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth = 10, n_co
 	parallel_args = [(w, raster_path, histogram_min, histogram_max, binwidth) for w in windows]
 
 	# do multiprocessing
-	n_bins = (histogram_max - histogram_min) / binwidth
+	n_bins = int(floor((histogram_max - histogram_min) / binwidth ))
 	out_counts, out_bins = np.histogram(np.array([0]), bins=n_bins, range=(histogram_min, histogram_max)) # tuple of (counts, bin_boundaries). Note that len(bin_boundaries) == ( len(counts) + 1 )
 	p = Pool(processes=int(n_cores))
 	for window_counts in p.map(_mp_worker_PCT, parallel_args):
