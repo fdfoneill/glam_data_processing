@@ -47,7 +47,8 @@ def getValidRange(dtype:str) -> tuple:
 				raise ValueError
 		elif ("float" in dtype):
 			try:
-				return (np.finfo(dtype).min, np.finfo(dtype).max)
+				# return (np.finfo(dtype).min, np.finfo(dtype).max)
+				return (0, np.finfo(dtype).max)
 			except:
 				raise ValueError
 		else:
