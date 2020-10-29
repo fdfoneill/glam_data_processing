@@ -47,11 +47,6 @@ def readCredentialsFile() -> None:
 			log.debug(f"Variable not found in credentials file")
 			continue
 
-try:
-	readCredentialsFile()
-except NoCredentialsError:
-	log.warning("No credentials file found. Reading directly from environment variables instead.")
-
 
 def pullFromSource(product:str,date:str,output_directory:str,file_name_override:str = None) -> str:
 	"""A function that pulls available imagery from its source repository
@@ -76,6 +71,10 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 	"""
 
 	# find repository credentials
+	try:
+		readCredentialsFile()
+	except NoCredentialsError:
+		log.warning("No credentials file found. Reading directly from environment variables instead.")
 	credentials = {}
 	try:
 		credentials['merraUsername'] = os.environ['merrausername']
@@ -83,8 +82,8 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		credentials['swiUsername'] = os.environ['swiusername']
 		credentials['swiPassword'] = os.environ['swipassword']
 	except KeyError:
-		log.warning("Data archive credentials not set. The following functionality will be unavailable:\n\tDownloader.isAvailable()\n\tDownloader.pullFromSource()\nUse 'glamconfigure' on command line to set archive credentials.")
-
+		log.error("Data archive credentials not set. Use 'glamconfigure' on command line to set archive credentials.")
+		return ()
 
 	def project_to_sinusoidal_inPlace(in_file:str) -> int:
 			"""
