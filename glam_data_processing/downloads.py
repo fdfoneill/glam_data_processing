@@ -85,6 +85,10 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		log.error("Data archive credentials not set. Use 'glamconfigure' on command line to set archive credentials.")
 		return ()
 
+
+	# helper functions
+
+
 	def project_to_sinusoidal_inPlace(in_file:str) -> int:
 			"""
 			This function, given a path to a file, projects it to sinusoidal in place
@@ -196,12 +200,40 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		os.remove(intermediate_file)
 
 
-	def downloadMerra2(date:str, out_dir:str, credentials:dict, *args, **kwargs) -> tuple:
+	# individual download functions
+
+
+	def downloadMerra2(date:str, out_dir:str, credentials:dict, variable="ALL", *args, **kwargs) -> tuple:
 		"""
 		Given date of merra product, downloads file to output directory
 		Returns tuple of file paths or empty list if download failed
 		Downloaded files are COGs in sinusoidal projection
+
+		Parameters
+		----------
+		date:str
+		out_dir:str
+		credentials:dict
+		variable:str
+			Options = [MIN, MEAN, MAX, ALL]
 		"""
+
+		# handle variable options
+		minimum = maximum = mean = False
+		if variable == "ALL":
+			minimum = True
+			maximum = True
+			mean = True
+		elif variable == "MIN":
+			minimum = True
+		elif variable == "MAX":
+			maximum = True
+		elif variable == "MEAN":
+			mean = True
+		else:
+			raise BadInputError(f"Parameter 'variable' expected one of MIN, MEAN, MAX, not '{variable}'")
+
+
 
 		## define how to mosaic list of file paths
 		def mosaic_merra2(path_list:list,metric:str) -> str:
@@ -268,11 +300,13 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 				return ()
 
 		## dictionary of empty lists of metric-specific file paths, waiting to be filled
-		merraFiles = {
-				'min':[],
-				'mean':[],
-				'max':[]
-			}
+		merraFiles = {}
+		if minimum:
+			merraFiles['min']=[]
+		if maximum:
+			merraFiles['max']=[]
+		if mean:
+			merraFiles['mean']=[]
 
 		## loop over list of urls
 		log.debug(m2Urls)
@@ -304,26 +338,31 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 
 			## extract subdataset names
 			dataset= gdal.Open(outNc4,0)
-			sdMin = dataset.GetSubDatasets()[3][0] # full name of T2MMIN subdataset
-			sdMax = dataset.GetSubDatasets()[1][0] # full name of T2MMAX subdataset
-			sdMean = dataset.GetSubDatasets()[2][0] # full name of T2MMEAN subdataset
+
+			if minimum:
+				sdMin = dataset.GetSubDatasets()[3][0] # full name of T2MMIN subdataset
+				minOut = os.path.join(out_dir,f"M2_MIN.{urlDate}.TEMP.tif")
+				subprocess.call(["gdal_translate","-q",sdMin,minOut]) # calling the command line to produce the tiff
+				merraFiles['min'].append(minOut)
+
+			if maximum:
+				sdMax = dataset.GetSubDatasets()[1][0] # full name of T2MMAX subdataset
+				maxOut = os.path.join(out_dir,f"M2_MAX.{urlDate}.TEMP.tif")
+				subprocess.call(["gdal_translate","-q",sdMax,maxOut]) # calling the command line to produce the tiff
+				merraFiles['max'].append(maxOut)
+
+			if mean:
+				sdMean = dataset.GetSubDatasets()[2][0] # full name of T2MMEAN subdataset
+				meanOut = os.path.join(out_dir,f"M2_MEAN.{urlDate}.TEMP.tif")
+				subprocess.call(["gdal_translate","-q",sdMean,meanOut]) # calling the command line to produce the tiff
+				merraFiles['mean'].append(meanOut)				
+
+
+			## delete netCDF file and GDAL dataset object
 			del dataset
-
-			## copy subdatasets to new files
-			minOut = os.path.join(out_dir,f"M2_MIN.{urlDate}.TEMP.tif")
-			maxOut = os.path.join(out_dir,f"M2_MAX.{urlDate}.TEMP.tif")
-			meanOut = os.path.join(out_dir,f"M2_MEAN.{urlDate}.TEMP.tif")
-			subprocess.call(["gdal_translate","-q",sdMin,minOut]) # calling the command line to produce the tiff
-			subprocess.call(["gdal_translate","-q",sdMax,maxOut]) # calling the command line to produce the tiff
-			subprocess.call(["gdal_translate","-q",sdMean,meanOut]) # calling the command line to produce the tiff
-
-			## delete netCDF file
 			os.remove(outNc4)
-
-			## append subdataset file paths to corresponding lists in dictionary
-			merraFiles['min'].append(minOut)
-			merraFiles['mean'].append(meanOut)
-			merraFiles['max'].append(maxOut)
+			
+			
 
 		# merraFiles now stores a list of files for each metric type
 		# for each metric, we mosaic all the files by that metric
@@ -633,11 +672,34 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 
+	# special merra-2 wrapper functions
+
+
+	def downloadMerra2Min(date:str, out_dir:str, credentials: dict, *args, **kwargs) -> tuple:
+		"""Wrapper function around downloadMerra2()"""
+		return downloadMerra2(date, out_dir, credentials, variable= "MIN", *args, **kwargs)
+
+
+	def downloadMerra2Max(date:str, out_dir:str, credentials: dict, *args, **kwargs) -> tuple:
+		"""Wrapper function around downloadMerra2()"""
+		return downloadMerra2(date, out_dir, credentials, variable= "MAX", *args, **kwargs)
+
+
+	def downloadMerra2Mean(date:str, out_dir:str, credentials: dict, *args, **kwargs) -> tuple:
+		"""Wrapper function around downloadMerra2()"""
+		return downloadMerra2(date, out_dir, credentials, variable= "MEAN", *args, **kwargs)
+
+
+	# actual calling of the functions
+
 	actions = {
 		"swi":downloadSwi,
 		"chirps":downloadChirps,
 		"chirps-prelim":downloadChirpsPrelim,
 		"merra-2":downloadMerra2,
+		"merra-2-min":downloadMerra2Min,
+		"merra-2-max":downloadMerra2Max,
+		"merra-2-mean":downloadMerra2Mean,
 		"MOD09Q1":downloadMod09q1,
 		"MYD09Q1":downloadMyd09q1,
 		"MOD13Q1":downloadMod13q1,
