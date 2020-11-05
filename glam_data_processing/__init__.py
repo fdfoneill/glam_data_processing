@@ -2628,7 +2628,7 @@ class Image:
 					if not override_brazil_limit:
 						if crop in crops_brazil and admin not in admins_brazil:
 							continue
-					log.info(f"{crop} x {admin}")
+					log.debug(f"{crop} x {admin}")
 					statsTable = stats_tables[crop][admin] # extract correct StatsTable object, with fields .name:str and .exists:bool
 					try:
 						statsDataFrame = zonal_stats(self.path,self.cropMaskFiles[crop],self.adminFiles[admin]) # generate data frame of statistics
