@@ -150,7 +150,7 @@ if __name__ == "__main__":
 	# get input paths
 	input_paths = getInputPathList(new_image)
 	if len(input_paths) < 10:
-		log.error(f"Only {len(input_paths)} paths found for {args.input_file}")
+		log.error(f"Only {len(input_paths)} input image paths found for {args.input_file}")
 		sys.exit()
 
 	# get input raster metadata and dimensions
