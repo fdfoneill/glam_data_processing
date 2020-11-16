@@ -223,7 +223,7 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 		vnum = meta_handle.height
 
 	# get windows
-	window = getWindows(hnum, vnum, blocksize)
+	windows = getWindows(hnum, vnum, blocksize)
 	# windows = []
 	# # log.info(type(hnum))
 	# # log.info(type(blocksize))

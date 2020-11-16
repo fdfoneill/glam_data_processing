@@ -48,7 +48,7 @@ def readCredentialsFile() -> None:
 			continue
 
 
-def pullFromSource(product:str,date:str,output_directory:str,file_name_override:str = None) -> str:
+def pullFromSource(product:str,date:str,output_directory:str,file_name_override:str = None) -> tuple:
 	"""A function that pulls available imagery from its source repository
 
 	Parameters
@@ -74,7 +74,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 	try:
 		readCredentialsFile()
 	except NoCredentialsError:
-		log.warning("No credentials file found. Reading directly from environment variables instead.")
+		log.warning("No credentials file found. Reading directly from environment variables.")
 	credentials = {}
 	try:
 		credentials['merraUsername'] = os.environ['merrausername']
@@ -82,7 +82,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		credentials['swiUsername'] = os.environ['swiusername']
 		credentials['swiPassword'] = os.environ['swipassword']
 	except KeyError:
-		log.error("Data archive credentials not set. Use 'glamconfigure' on command line to set archive credentials.")
+		log.error("At least one data access credential is not set. Use 'glamconfigure' on command line to set archive credentials.")
 		return ()
 
 
@@ -815,3 +815,236 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 	## return tuple of file paths
 	return tuple(results)
 
+
+def isAvailable(product:str, date:str) -> bool:
+	"""Returns whether imagery for given product and date is available for download from source"""
+	
+	# parse arguments
+	try:
+		datetime.date(datetime.strptime(date,"%Y-%m-%d"))
+	except:
+		try:
+			date = datetime.strptime(date,"%Y.%j").strftime("%Y-%m-%d")
+		except:
+			raise BadInputError(f"Failed to parse input '{date}' as a date. Please use format YYYY-MM-DD or YYYY.DOY")
+
+	if product in ["merra-2", "merra-2-min", "merra-2-max", "merra-2-mean"]:
+		product = "merra-2"
+		allGood = True
+		for i in range(5): # we are collecting the requested date along with 4 previous days
+			mDate = datetime.strptime(date,"%Y-%m-%d") - timedelta(days=i)
+			mYear = mDate.strftime("%Y")
+			mMonth = mDate.strftime("%m").zfill(2)
+			mDay = mDate.strftime("%d").zfill(2)
+			pageUrl = f"https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2SDNXSLV.5.12.4/{mYear}/{mMonth}/"
+			try:
+				pageObject = urlopen(pageUrl)
+				pageText = str(pageObject.read())
+				ex = re.compile(f'MERRA2\S*{mYear}{mMonth}{mDay}.nc4') # regular expression that matches file name of desired date file
+				mFileName = re.search(ex,pageText).group() # matches desired file name from web page
+			except HTTPError: # if any file in the range is missing, don't generate the mosaic at all
+				return False
+			except AttributeError:
+				log.warning(f"Failed to find Merra-2 URL for {mDate.strftime('%Y-%m-%d')}. We seem to have caught the merra-2 team in the middle of uploading their data... check {pageUrl} to be sure.")
+				return False
+		return True
+
+	elif product == "chirps":
+		## get url to be downloaded
+			cDate = datetime.strptime(date,"%Y-%m-%d")
+			cYear = cDate.strftime("%Y")
+			cMonth = cDate.strftime("%m").zfill(2)
+			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
+			url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			## try to open url
+			try:
+				fh = urlopen(Request(url))
+				return True
+			except URLError:
+				return False
+
+	elif product == "chirps-prelim":
+		## get url to be downloaded
+		cDate = datetime.strptime(date,"%Y-%m-%d")
+		cYear = cDate.strftime("%Y")
+		cMonth = cDate.strftime("%m").zfill(2)
+		cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
+		url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
+		## try to open url
+		try:
+			fh = urlopen(Request(url))
+			return True
+		except URLError:
+			return False
+
+	elif product == "swi":
+		dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
+		year = dateObj.strftime("%Y")
+		month = dateObj.strftime("%m".zfill(2))
+		day = dateObj.strftime("%d".zfill(2))
+		url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
+		with requests.Session() as session:
+			session.auth = (self.swiUsername, self.swiPassword)
+			request = session.request('get',url)
+			if request.status_code == 200:
+				if request.headers['Content-Type'] == 'application/octet-stream':
+					return True
+			else:
+				return False
+
+	elif product in octvi.supported_products:
+		if len(octvi.url.getDates(product,date)) > 0:
+			return True
+		else:
+			return False
+
+	else:
+		raise BadInputError(f"Product '{product}' not recognized")
+
+
+def listAvailable(product:str, start_date:str, format_doy = False) -> list:
+	"""A function that lists availabe-to-download imagery dates
+
+	Parameters
+	----------
+	product:str
+		String name of product; e.g. MOD09Q1, merra-2-min, etc.
+	start_date:str
+		Date from which to begin search. Should be the latest 
+		product date already ingested. Can be formatted as
+		YYYY-MM-DD or YYYY.DOY
+	format_doy:bool
+		Default false. If true, returns dates as YYYY.DOY rather
+		than default YYYY-MM-DD
+
+	Returns
+	-------
+	List of string dates in format YYYY-MM-DD or YYYY.DOY, depending
+	on format_doy argument. Each date has available imagery to download.
+	"""
+
+	# parse arguments
+	try:
+		latest = datetime.date(datetime.strptime(start_date,"%Y-%m-%d"))
+	except:
+		try:
+			latest = datetime.date(datetime.strptime(start_date,"%Y.%j"))
+		except:
+			raise BadInputError(f"Failed to parse input '{start_date}' as a date. Please use format YYYY-MM-DD or YYYY.DOY")
+	today = datetime.date(datetime.today())
+	raw_dates = []
+	filtered_dates = []
+	
+	if product in ["merra-2", "merra-2-min", "merra-2-max", "merra-2-mean"]:
+		product = "merra-2"
+		# get all possible dates
+		while latest < today:
+			latest = latest + timedelta(days=1)
+			log.debug(f"Found missing file in valid date range: merra-2 for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "chirps":
+		# get all possible dates
+		while latest < today:
+			if int(latest.strftime("%d")) > 12:
+				latest = latest+timedelta(days=15) # push the date into the next month, but not past the 11th day of the next month
+				latest = datetime.date(datetime.strptime(latest.strftime("%Y-%m")+"-01","%Y-%m-%d")) # once we're in next month, slam the day back down to 01
+			else:
+				latest = latest+timedelta(days=10) # 01 becomes 11, 11 becomes 21
+			log.debug(f"Found missing file in valid date range: chirps for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "chirps-prelim":
+		# get all possible dates
+		while latest < today:
+			if int(latest.strftime("%d")) > 12:
+				latest = latest+timedelta(days=15) # push the date into the next month, but not past the 11th day of the next month
+				latest = datetime.date(datetime.strptime(latest.strftime("%Y-%m")+"-01","%Y-%m-%d")) # once we're in next month, slam the day back down to 01
+			else:
+				latest = latest+timedelta(days=10) # 01 becomes 11, 11 becomes 21
+			log.debug(f"Found missing file in valid date range: chirps-prelim for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "swi":
+		# get all possible dates
+		while latest < today:
+			latest = latest + timedelta(days=5)
+			log.debug(f"Found missing file in valid date range: swi for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "MOD09Q1":
+		# get all possible dates
+		if latest is None:
+			latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+		while latest < today:
+			oldYear = latest.strftime("%Y")
+			latest = latest + timedelta(days = 8)
+			if latest.strftime("%Y") != oldYear:
+				latest = latest.replace(day=1)
+			log.debug(f"Found missing file in valid date range: MOD09Q1 for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "MYD09Q1":
+		# get all possible dates
+		if latest is None:
+			latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+		while latest < today:
+			oldYear = latest.strftime("%Y")
+			latest = latest + timedelta(days = 8)
+			if latest.strftime("%Y") != oldYear:
+				latest = latest.replace(day=1)
+			log.debug(f"Found missing file in valid date range: MYD09Q1 for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "MOD13Q1":
+		# get all possible dates
+		if latest is None:
+			latest = datetime.date(datetime.strptime("2000.049","%Y.%j"))
+		while latest < today:
+			oldYear = latest.strftime("%Y")
+			latest = latest + timedelta(days = 16)
+			if latest.strftime("%Y") != oldYear:
+				latest = latest.replace(day=1)
+			log.debug(f"Found missing file in valid date range: MOD13Q1 for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "MYD13Q1":
+		# get all possible dates
+		if latest is None:
+			latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+		while latest < today:
+			oldYear = latest.strftime("%Y")
+			latest = latest + timedelta(days = 16)
+			if latest.strftime("%Y") != oldYear:
+				latest = latest.replace(day=9)
+			log.debug(f"Found missing file in valid date range: MYD13Q1 for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+
+	elif product == "MOD13Q4N":
+		# get all possible dates
+		if latest is None:
+			latest = datetime.date(datetime.strptime("2002.185","%Y.%j"))
+		while latest < today:
+			oldYear = latest.strftime("%Y")
+			latest = latest + timedelta(days = 1)
+			if latest.strftime("%Y") != oldYear:
+				latest = latest.replace(day=1)
+			log.debug(f"Found missing file in valid date range: MOD13Q4N for {latest.strftime('%Y-%m-%d')}")
+			raw_dates.append(latest.strftime("%Y-%m-%d"))
+	
+	else:
+		raise BadInputError(f"Product '{product}' not recognized")
+
+	# filter products
+	for rd in raw_dates:
+		if isAvailable(product,rd):
+			filtered_dates.append(rd)
+
+	# convert to DOY format if requested
+	if format_doy:
+		temp_dates = filtered_dates
+		filtered_dates = []
+		for td in temp_dates:
+			filtered_dates.append(datetime.strptime(td,"%Y-%m-%d").strftime("%Y.%j"))
+
+	return filtered_dates
