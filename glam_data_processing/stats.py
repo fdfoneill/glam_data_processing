@@ -249,7 +249,7 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 	final_output = {}
 	p = Pool(processes=n_cores)
 	for window_output in p.map(_mp_worker_ZS, parallel_args):
-		_update_ZS(final_output, window_output)
+		final_output = _update_ZS(final_output, window_output)
 	p.close()
 	p.join()
 
