@@ -144,7 +144,7 @@ if __name__ == "__main__":
 	doy=new_image.doy
 
 	# set baseline_locations
-	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","anomaly_baselines",product)
+	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters","baselines",product)
 	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']} #,'mean_full','median_full']}
 	
 	# get input paths
