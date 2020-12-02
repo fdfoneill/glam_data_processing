@@ -11,7 +11,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 #logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 
-import boto3, collections, ftplib, glob, gdal, gzip, json, math, octvi, re, requests, shutil, subprocess, sys, urllib
+import boto3, collections, ftplib, glob, gdal, gzip, json, math, octvi, re, requests, shutil, subprocess, sys, urllib, warnings
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from datetime import datetime

@@ -144,7 +144,11 @@ if __name__ == "__main__":
 	doy=new_image.doy
 
 	# set baseline_locations
-	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters","baselines",product)
+	if "merra-2" in product:
+		sub_product = "merra-2-" + os.path.basename(new_image.path).split(".")[-2]
+	else:
+		sub_product = product
+	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters","baselines",sub_product)
 	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']} #,'mean_full','median_full']}
 	
 	# get input paths
@@ -254,11 +258,11 @@ if __name__ == "__main__":
 	log.debug("Starting baseline update")
 
 	# set output filenames
-	if product in supported_products + ["merra-2"]: # can just use doy
-		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{doy}.anomaly_mean_5year.tif")
-		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{doy}.anomaly_median_5year.tif")
-		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{doy}.anomaly_mean_10year.tif")
-		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{doy}.anomaly_median_10year.tif")
+	if (product in supported_products) or ("merra-2" in product): # can just use doy
+		mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{sub_product}.{doy}.anomaly_mean_5year.tif")
+		median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{sub_product}.{doy}.anomaly_median_5year.tif")
+		mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{sub_product}.{doy}.anomaly_mean_10year.tif")
+		median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{sub_product}.{doy}.anomaly_median_10year.tif")
 		# mean_full_name = os.path.join(baseline_locations["mean_full"], f"{product}.{doy}.anomaly_mean_full.tif")
 		# median_full_name = os.path.join(baseline_locations["median_full"], f"{product}.{doy}.anomaly_median_full.tif")
 	elif product == "chirps":
@@ -310,7 +314,7 @@ if __name__ == "__main__":
 			windows += [targetwindow]
 
 	# do multiprocessing
-	log.info(f"Processing ({new_image.product} {new_image.date}) | {n_workers} parallel processes")
+	log.info(f"Processing ({sub_product} {new_image.date}) | {n_workers} parallel processes")
 	parallelStartTime = datetime.now()
 	p = multiprocessing.Pool(n_workers)
 
