@@ -4,7 +4,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger("glam_command_line")
 
 import argparse, glob, json, subprocess, sys
-import glam_data_processing as glam
+import glam_data_processing.legacy as glam
 from datetime import datetime
 
 # create temporary directory for shenanigans
@@ -145,7 +145,7 @@ def main():
 			#print(in_file)
 			statsOneFile(in_file, args.admin_level,args.mask_level,args.admin_specified,args.mask_specified)
 		sys.exit()
-		
+
 
 	## confirm argument validity
 	# download_files requires product
@@ -186,14 +186,14 @@ def main():
 		for f in extant:
 			line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -META '{f}'"
 			if args.save_results:
-				line += " -s" 
+				line += " -s"
 			if args.admin_specified:
 					line += f" -as {args.admin_specified}"
 			if args.mask_specified:
 				line += f" -ms {args.mask_specified}"
 			line += "\n"
 			lines += line
-		
+
 
 	## download and process new files if requested
 	if args.download_files:
@@ -210,17 +210,17 @@ def main():
 				meta = f"{product}.{date}"
 				line = f"python {os.path.abspath(__file__)} {args.file_directory} -al {args.admin_level} -ml {args.mask_level} -c {args.cores} -d -META {meta}"
 				if args.save_results:
-					line += " -s" 
+					line += " -s"
 				if args.admin_specified:
 					line += f" -as {args.admin_specified}"
 				if args.mask_specified:
 					line += f" -ms {args.mask_specified}"
 				line += " \n"
-				lines += line 
+				lines += line
 
 			downloader=None
 	command_file = getUniqueFilename(TEMP_DIR,"gns_commands.txt")
-	
+
 	with open(command_file,'w') as wf:
 		wf.writelines(lines)
 	shell_call = ["nohup","sh","-c", f'"cat {command_file} | parallel -j {args.cores}"', "&>",args.logfile,"&"]

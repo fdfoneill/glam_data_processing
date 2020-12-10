@@ -11,14 +11,14 @@ from rasterio.io import MemoryFile
 from functools import partial
 from octvi import supported_products
 import numpy as np
-import glam_data_processing as glam
+import glam_data_processing.legacy as glam
 
 
 def getSwiBaselineDoy(new_img:glam.Image) -> int:
 	for valid_swi_date in range(1,366,5):
 		if min(abs(int(new_img.doy)-valid_swi_date),(valid_swi_date-int(new_img.doy)) % 365) <= 2:
 			return valid_swi_date
-			
+
 
 def getInputPathList(new_img:glam.Image) -> list:
 	data_directory = os.path.dirname(new_img.path)
@@ -54,7 +54,7 @@ def getInputPathList(new_img:glam.Image) -> list:
 				input_images.append(img)
 		else:
 			log.error(f"Product {product} not recognized in getInputPathList()")
-	
+
 	# sort input_images
 	input_images.sort()
 	input_images.reverse()
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 		sub_product = product
 	baseline_root = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters","baselines",sub_product)
 	baseline_locations = {anomaly_type:os.path.join(baseline_root,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']} #,'mean_full','median_full']}
-	
+
 	# get input paths
 	input_paths = getInputPathList(new_image)
 	if len(input_paths) < 10:

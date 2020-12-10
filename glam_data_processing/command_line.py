@@ -4,7 +4,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger("glam_command_line")
 
 import argparse, glob, json, octvi, subprocess, sys
-import glam_data_processing as glam
+import glam_data_processing.legacy as glam
 from getpass import getpass
 from datetime import datetime
 
@@ -16,7 +16,7 @@ def getYesNo(message:str) -> bool:
 		return False
 	else:
 		print("Error: Input not recognized. Please select one of: [Y/N]")
-		return getYesNo(message)	
+		return getYesNo(message)
 
 def setCredentials():
 	## get existing credentials
