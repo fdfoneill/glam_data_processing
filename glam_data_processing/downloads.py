@@ -11,7 +11,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 #logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 
-import boto3, collections, ftplib, glob, gdal, gzip, json, math, octvi, re, requests, shutil, subprocess, sys, urllib, warnings
+import boto3, collections, ftplib, glob, gdal, gzip, json, math, octvi, re, requests, shutil, subprocess, sys, urllib
 from botocore.exceptions import ClientError
 boto3.set_stream_logger('botocore', level='INFO')
 from datetime import datetime
@@ -253,7 +253,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 				driver = gdal.GetDriverByName('GTiff')
 				dataset = driver.Create(out_path,576,361,1,gdal.GDT_Float32,['COMPRESS=LZW'])
 				dataset.GetRasterBand(1).WriteArray(in_array)
-				dataset.SetGeoTransform((-180.3125, 0.625, 0.0, 90.25, 0.0, -0.5))					
+				dataset.SetGeoTransform((-180.3125, 0.625, 0.0, 90.25, 0.0, -0.5))
 				dataset.GetRasterBand(1).SetNoDataValue(1E15)
 				dataset.FlushCache() # Write to disk
 				del dataset
@@ -333,7 +333,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 				log.warning(w)
 				return () # no files for you today, but we'll try again tomorrow!
 
-			
+
 			# as of now it's a .nc4 file, we need TIFFs of just the 3 subdatasets we're interested in (T2MMEAN, T2MIN, T2MAX)
 
 			## extract subdataset names
@@ -355,14 +355,14 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 				sdMean = dataset.GetSubDatasets()[2][0] # full name of T2MMEAN subdataset
 				meanOut = os.path.join(out_dir,f"M2_MEAN.{urlDate}.TEMP.tif")
 				subprocess.call(["gdal_translate","-q",sdMean,meanOut]) # calling the command line to produce the tiff
-				merraFiles['mean'].append(meanOut)				
+				merraFiles['mean'].append(meanOut)
 
 
 			## delete netCDF file and GDAL dataset object
 			del dataset
 			os.remove(outNc4)
-			
-			
+
+
 
 		# merraFiles now stores a list of files for each metric type
 		# for each metric, we mosaic all the files by that metric
@@ -413,29 +413,61 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			# url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
+			print(url)
 
 			## download file at url
-			try:
-				with open(file_zipped,"w+b") as fz:
-					fh = urlopen(Request(url))
-					shutil.copyfileobj(fh,fz)
-			except URLError:
-				log.warning(f"No Chirps file exists for {date}")
-				os.remove(file_zipped)
+			# try:
+			# 	with open(file_zipped,"w+b") as fz:
+			# 		fh = urlopen(Request(url))
+			# 		shutil.copyfileobj(fh,fz)
+			# except URLError:
+			# 	log.warning(f"No Chirps file exists for {date}")
+			# 	os.remove(file_zipped)
+			# 	return ()
+			#
+			# ## checksum
+			# observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file (bytes)
+			# expectedSize = int(urlopen(Request(url)).info().get("Content-length")) # size anticipated from header (bytes)
+			#
+			# ## checksum fails, log warning and return empty list
+			# if observedSize != expectedSize:
+			# 	w=f"WARNING:\nExpected file size:\t{expectedSize} bytes\nObserved file size:\t{observedSize} bytes"
+			# 	log.warning(w)
+			# 	os.remove(file_zipped)
+			# 	return () # no files for you today :(
+			#
+			# ## use gzip to unzip file to final location
+			# tf = file_unzipped.replace(".tif",".UNMASKED.tif")
+			# with gzip.open(file_zipped) as fz:
+			# 	with open(tf,"w+b") as fu:
+			# 		shutil.copyfileobj(fz,fu)
+			# os.remove(file_zipped) # delete zipped version
+
+			## new downloading method (https)
+
+			with requests.Session() as session:
+				r1 = session.request('get',url)
+				r = session.get(r1.url)
+			if r.status_code != 200:
+				log.warning(f"Url {url} not found")
 				return ()
+			# write output .nc4 file
+			with open(file_zipped,"wb") as fd: # write data in chunks
+				for chunk in r.iter_content(chunk_size = 1024*1024):
+					fd.write(chunk)
 
-			## checksum
-			observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file (bytes)
-			expectedSize = int(urlopen(Request(url)).info().get("Content-length")) # size anticipated from header (bytes)
+			##CHECKSUM
+			observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file in bytes
+			expectedSize = int(r.headers['Content-Length']) # size of promised file in bytes, extracted from server-delivered headers
 
-			## checksum fails, log warning and return empty list
-			if observedSize != expectedSize:
+			## checksum failure; return empty tuple
+			if observedSize != expectedSize: # checksum failure
 				w=f"WARNING:\nExpected file size:\t{expectedSize} bytes\nObserved file size:\t{observedSize} bytes"
 				log.warning(w)
-				os.remove(file_zipped)
-				return () # no files for you today :(
-			
+				return () # no files for you today, but we'll try again tomorrow!
+
 			## use gzip to unzip file to final location
 			tf = file_unzipped.replace(".tif",".UNMASKED.tif")
 			with gzip.open(file_zipped) as fz:
@@ -457,10 +489,10 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			## cloud-optimize file
 			cloud_optimize_inPlace(file_unzipped)
 
-			## remove corresponding preliminary product, if necessary
-			correspondingPrelimFile = os.path.join(out_dir,f"chirps-prelim.{date}.tif")
-			if os.path.exists(correspondingPrelimFile):
-				os.remove(correspondingPrelimFile)
+			# ## remove corresponding preliminary product, if necessary
+			# correspondingPrelimFile = os.path.join(out_dir,f"chirps-prelim.{date}.tif")
+			# if os.path.exists(correspondingPrelimFile):
+			# 	os.remove(correspondingPrelimFile)
 
 			## return file path string in tuple
 			return tuple([file_unzipped])
@@ -485,17 +517,31 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
+			# url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
+			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
 
-			## download file at url
-			try:
-				with open(tf,"w+b") as fd:
-					fs = urlopen(Request(url))
-					shutil.copyfileobj(fs,fd)
-			except URLError:
-				log.warning(f"No Chirps file exists for {date}")
-				os.remove(tf)
+			# ## download file at url
+			# try:
+			# 	with open(tf,"w+b") as fd:
+			# 		fs = urlopen(Request(url))
+			# 		shutil.copyfileobj(fs,fd)
+			# except URLError:
+			# 	log.warning(f"No Chirps file exists for {date}")
+			# 	os.remove(tf)
+			# 	return ()
+
+			## new downloading method (https)
+
+			with requests.Session() as session:
+				r1 = session.request('get',url)
+				r = session.get(r1.url)
+			if r.status_code != 200:
+				log.warning(f"Url {url} not found")
 				return ()
+			# write output tif file
+			with open(tf,"wb") as fd: # write data in chunks
+				for chunk in r.iter_content(chunk_size = 1024*1024):
+					fd.write(chunk)
 
 			## checksum
 			observedSize = int(os.stat(tf).st_size) # size of downloaded file (bytes)
@@ -542,7 +588,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		year = dateObj.strftime("%Y")
 		month = dateObj.strftime("%m".zfill(2))
 		day = dateObj.strftime("%d".zfill(2))
-		
+
 		## download file
 		url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
 		file_nc = out.replace("tif","nc") # temporary NetCDF file; later to be converted to tiff
@@ -724,7 +770,7 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 	Pulls desired product x date combination from S3 bucket and downloads to out_dir
 	Downloaded files are COGs in sinusoidal projection
 	Returns tuple of downloaded product path strings, or empty tuple on failure
-	
+
 	...
 
 	Parameters
@@ -785,7 +831,7 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 		except Exception:
 			log.exception("File download from S3 failed")
 			return ()
-	
+
 	elif product in ["swi","chirps","chirps-prelim"]:
 		s3_key = f"rasters/{product}.{date}.tif"
 		outFile = os.path.join(out_dir,f"{product}.{date}.tif")
@@ -818,7 +864,7 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 
 def isAvailable(product:str, date:str) -> bool:
 	"""Returns whether imagery for given product and date is available for download from source"""
-	
+
 	# parse arguments
 	try:
 		datetime.date(datetime.strptime(date,"%Y-%m-%d"))
@@ -910,7 +956,7 @@ def listAvailable(product:str, start_date:str, format_doy = False) -> list:
 	product:str
 		String name of product; e.g. MOD09Q1, merra-2-min, etc.
 	start_date:str
-		Date from which to begin search. Should be the latest 
+		Date from which to begin search. Should be the latest
 		product date already ingested. Can be formatted as
 		YYYY-MM-DD or YYYY.DOY
 	format_doy:bool
@@ -934,7 +980,7 @@ def listAvailable(product:str, start_date:str, format_doy = False) -> list:
 	today = datetime.date(datetime.today())
 	raw_dates = []
 	filtered_dates = []
-	
+
 	if product in ["merra-2", "merra-2-min", "merra-2-max", "merra-2-mean"]:
 		product = "merra-2"
 		# get all possible dates
@@ -1031,7 +1077,7 @@ def listAvailable(product:str, start_date:str, format_doy = False) -> list:
 				latest = latest.replace(day=1)
 			log.debug(f"Found missing file in valid date range: MOD13Q4N for {latest.strftime('%Y-%m-%d')}")
 			raw_dates.append(latest.strftime("%Y-%m-%d"))
-	
+
 	else:
 		raise BadInputError(f"Product '{product}' not recognized")
 
