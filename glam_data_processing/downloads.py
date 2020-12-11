@@ -1,7 +1,16 @@
 #! /usr/bin/env python
 
 """
+This module includes several functions related to downloading GLAM data and checking its availability
 
+***
+
+Functions
+---------
+pullFromSource
+pullFromS3
+isAvailable
+listAvailable
 """
 
 # set up logging
@@ -29,16 +38,16 @@ from glam_data_processing.exceptions import BadInputError, NoCredentialsError, U
 
 def readCredentialsFile() -> None:
 	"""Reads merra / swi usernames and passwords from credentials file into environment variables"""
-	#log.info(__file__)
+	# credentials file is stored at ../glam_keys.json
 	credDir = os.path.dirname(os.path.dirname(__file__))
 	credFile = os.path.join(credDir,"glam_keys.json")
-	#log.info(credFile)
 	try:
 		with open(credFile,'r') as f:
 			keys = json.loads(f.read())
 		log.debug(f"Found credentials file: {credFile}")
 	except FileNotFoundError:
 		raise NoCredentialsError("Credentials file ('glam_keys.json') not found.")
+	# read credentials from file into local environment variables
 	for k in ["merrausername","merrapassword","swiusername","swipassword"]:
 		try:
 			log.debug(f"Adding variable to environment: {k}")
@@ -131,7 +140,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			with open(intermediate_file,'wb') as a:
 				with open(in_file,'rb') as b:
 					shutil.copyfileobj(b,a)
-			#print(in_file,intermediate_file)
+			# 'sinus' is the WKT for MODIS sinusoidal projection
 			sinus = 'PROJCS["Sinusoidal",GEOGCS["GCS_Undefined",DATUM["Undefined",SPHEROID["User_Defined_Spheroid",6371007.181,0.0]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Sinusoidal"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],UNIT["Meter",1.0]]' # MODIS sinusoidal projection
 			if product:# == "swi":
 				intF= gdal.Open(intermediate_file,0)
@@ -142,6 +151,8 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 				gdal.Warp(in_file,intermediate_file,dstSRS = sinus) # reproject back to original file name, this time in MODIS sinusoidal
 			os.remove(intermediate_file) # delete intermediate file
 			# CHECK EXTENTS AGAINST MODIS
+			## sometimes the projection takes the file boundaries outside the valid extent of
+			## MODIS sinusoidal. When that happens, we have to clip it back down.
 			needsClipped = False
 			ds = gdal.Open(in_file,0)
 			gt = ds.GetGeoTransform()
@@ -231,11 +242,11 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		elif variable == "MEAN":
 			mean = True
 		else:
-			raise BadInputError(f"Parameter 'variable' expected one of MIN, MEAN, MAX, not '{variable}'")
+			raise BadInputError(f"Parameter 'variable' expected one of MIN, MEAN, MAX, ALL, but got '{variable}'")
 
 
 
-		## define how to mosaic list of file paths
+		## define how to mosaic list of file paths into a multi-day composite
 		def mosaic_merra2(path_list:list,metric:str) -> str:
 			"""
 			Takes a list of file paths, and mosaics results to a file ('merra-2.{date}.{metric}.tif') in output directory
@@ -412,48 +423,22 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			cDate = datetime.strptime(date,"%Y-%m-%d")
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
+			# convert day-of-month into 1, 2, or 3 depending on which third of the month it
+			# falls in (1-10, 11-20, 21-end). Chirps urls use these integers instead of day
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			# url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
-			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
-			print(url)
+			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
 
-			## download file at url
-			# try:
-			# 	with open(file_zipped,"w+b") as fz:
-			# 		fh = urlopen(Request(url))
-			# 		shutil.copyfileobj(fh,fz)
-			# except URLError:
-			# 	log.warning(f"No Chirps file exists for {date}")
-			# 	os.remove(file_zipped)
-			# 	return ()
-			#
-			# ## checksum
-			# observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file (bytes)
-			# expectedSize = int(urlopen(Request(url)).info().get("Content-length")) # size anticipated from header (bytes)
-			#
-			# ## checksum fails, log warning and return empty list
-			# if observedSize != expectedSize:
-			# 	w=f"WARNING:\nExpected file size:\t{expectedSize} bytes\nObserved file size:\t{observedSize} bytes"
-			# 	log.warning(w)
-			# 	os.remove(file_zipped)
-			# 	return () # no files for you today :(
-			#
-			# ## use gzip to unzip file to final location
-			# tf = file_unzipped.replace(".tif",".UNMASKED.tif")
-			# with gzip.open(file_zipped) as fz:
-			# 	with open(tf,"w+b") as fu:
-			# 		shutil.copyfileobj(fz,fu)
-			# os.remove(file_zipped) # delete zipped version
-
-			## new downloading method (https)
-
+			# download the gnuzip file
 			with requests.Session() as session:
+				# not sure if both these steps are strictly necessary. Try removing
+				# one and see if everything breaks!
 				r1 = session.request('get',url)
 				r = session.get(r1.url)
+			# nonexistent imagery gives a 404 response
 			if r.status_code != 200:
 				log.warning(f"Url {url} not found")
 				return ()
-			# write output .nc4 file
+			# write zipped .gz file to disk
 			with open(file_zipped,"wb") as fd: # write data in chunks
 				for chunk in r.iter_content(chunk_size = 1024*1024):
 					fd.write(chunk)
@@ -489,11 +474,6 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 			## cloud-optimize file
 			cloud_optimize_inPlace(file_unzipped)
 
-			# ## remove corresponding preliminary product, if necessary
-			# correspondingPrelimFile = os.path.join(out_dir,f"chirps-prelim.{date}.tif")
-			# if os.path.exists(correspondingPrelimFile):
-			# 	os.remove(correspondingPrelimFile)
-
 			## return file path string in tuple
 			return tuple([file_unzipped])
 
@@ -509,32 +489,27 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		Downloaded files are COGs in sinusoidal projection
 		"""
 		try:
+			# create formatted output filename
 			file_out = os.path.join(out_dir,f"chirps-prelim.{date}.tif")
-			tf = file_out.replace(".tif",".UNMASKED.tif")
+			tf = file_out.replace(".tif",".UNMASKED.tif") # temporary file to store before applying nodata mask
 
 			## get url to be downloaded
 			cDate = datetime.strptime(date,"%Y-%m-%d")
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
+			# chirps uses "1", "2", and "3" in their filenames, so we convert day of month to one of those
+			# based on which third of the month it falls in (1-10, 11-20, 20-end)
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			# url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
 			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
 
-			# ## download file at url
-			# try:
-			# 	with open(tf,"w+b") as fd:
-			# 		fs = urlopen(Request(url))
-			# 		shutil.copyfileobj(fs,fd)
-			# except URLError:
-			# 	log.warning(f"No Chirps file exists for {date}")
-			# 	os.remove(tf)
-			# 	return ()
-
-			## new downloading method (https)
-
+			## download file at url
 			with requests.Session() as session:
+				# not sure why both these steps are necessary, but too afraid to try
+				# removing one and seeing if it breaks things
 				r1 = session.request('get',url)
 				r = session.get(r1.url)
+			# nonexistent files don't throw an error, they just return a
+			# 404 response
 			if r.status_code != 200:
 				log.warning(f"Url {url} not found")
 				return ()
@@ -583,13 +558,13 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		Downloaded files are COGs in sinusoidal projection
 		"""
 
-		out = os.path.join(out_dir,f"swi.{date}.tif")
+		out = os.path.join(out_dir,f"swi.{date}.tif") # where final output will be written to disk
 		dateObj = datetime.strptime(date,"%Y-%m-%d") # convert string date to datetime object
-		year = dateObj.strftime("%Y")
-		month = dateObj.strftime("%m".zfill(2))
-		day = dateObj.strftime("%d".zfill(2))
+		year = dateObj.strftime("%Y") # extract year
+		month = dateObj.strftime("%m".zfill(2)) # extract month
+		day = dateObj.strftime("%d".zfill(2)) # extract day
 
-		## download file
+		## generate urls
 		url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
 		file_nc = out.replace("tif","nc") # temporary NetCDF file; later to be converted to tiff
 
@@ -597,7 +572,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		with requests.Session() as session:
 			session.auth = (credentials['swiUsername'], credentials['swiPassword'])
 			r1 = session.request('get',url)
-			r = session.get(r1.url,auth=(credentials['swiUsername'], credentials['swiPassword']))
+			r = session.get(r1.url,auth=(credentials['swiUsername'], credentials['swiPassword'])) # copernicus demands credentials twice!
 			headers = r.headers
 		# write output .nc file
 		with open(file_nc,"wb") as fd: # write data in chunks
@@ -608,6 +583,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		observedSize = int(os.stat(file_nc).st_size) # size of downloaded file (bytes)
 		expectedSize = int(headers['Content-Length']) # size anticipated from header (bytes)
 
+		## if checksum is failed, log and return empty
 		if int(observedSize) != int(expectedSize):
 			w=f"\nExpected file size:\t{expectedSize} bytes\nObserved file size:\t{observedSize} bytes"
 			log.warning(w)
@@ -647,12 +623,13 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"""
 		product = "MOD09Q1"
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override file name if user requested it
 		if file_name_override is not None:
 			outPath = os.path.join(out_dir,file_name_override)
 		else:
 			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
 
-		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
+		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)]) # use octvi to create mosaic
 
 
 	def downloadMyd09q1(date:str, out_dir:str, file_name_override:str = None, *args, **kwargs) -> tuple:
@@ -663,6 +640,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"""
 		product = "MYD09Q1"
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override default file name if user requests it
 		if file_name_override is not None:
 			outPath = os.path.join(out_dir,file_name_override)
 		else:
@@ -679,6 +657,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"""
 		product = "MOD13Q1"
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override default filename if user requests it
 		if file_name_override is not None:
 			outPath = os.path.join(out_dir,file_name_override)
 		else:
@@ -693,6 +672,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		Downloaded files are COGs in sinusoidal projection
 		"""
 		product = "MYD13Q1"
+		# override default file name if user requests it
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 		if file_name_override is not None:
 			outPath = os.path.join(out_dir,file_name_override)
@@ -710,6 +690,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"""
 		product = "MOD13Q4N"
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override default file name if user requests it
 		if file_name_override is not None:
 			outPath = os.path.join(out_dir,file_name_override)
 		else:
@@ -738,6 +719,10 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 
 	# actual calling of the functions
 
+	## this dictionary maps each product name to its corresponding download
+	## function. To download product "{prod}" with arguments "args", one
+	## can call actions[{prod}](*args). This is what we do in the return
+	## statement below
 	actions = {
 		"swi":downloadSwi,
 		"chirps":downloadChirps,
@@ -781,6 +766,8 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 		string representation in format YYYY.MM.DD or YYYY.DOY of desired product date
 	out_dir:str
 		path to output directory, where the cloud-optimized geoTiff will be stored
+	collection:[int, str]
+		Used to specify merra-2 variable (min, mean, or max)
 	"""
 
 	## set up boto3 logger, client, and bucket name
@@ -791,7 +778,7 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 			)
 	except KeyError:
 		raise NoCredentialsError("Amazon Web Services (AWS) credentials not found. Use 'glamconfigure' or 'aws configure' on the command line.")
-	s3_bucket = 'glam-tc-data'
+	s3_bucket = 'glam-tc-data' # S3 bucket name
 
 	## define output list to be coerced to tuple and returned
 	results = []
@@ -808,53 +795,60 @@ def pullFromS3(product:str,date:str,out_dir:str,collection=0) -> tuple:
 	## if the requested product is merra-2, check whether the user specified a collection
 	if product == 'merra-2' and collection == 0:
 		for metric in ("mean","min","max"):
-			s3_key = f"rasters/{product}.{date}.{metric}.tif"
-			outFile = os.path.join(out_dir,f"{product}.{date}.{metric}.tif")
+			s3_key = f"rasters/{product}.{date}.{metric}.tif" # file location on S3
+			outFile = os.path.join(out_dir,f"{product}.{date}.{metric}.tif") # output file name on disk
 			results.append(outFile)
 			try:
-				s3_client.download_file(s3_bucket,s3_key,outFile)
-			except ClientError:
+				s3_client.download_file(s3_bucket,s3_key,outFile) # actually pull file
+			except ClientError: # thrown if file doesn't exist
 				log.error("File not available on S3")
 				return ()
-			except Exception:
+			except Exception: # other exceptions suggest failure during download
 				log.exception("File download from S3 failed")
 				return ()
 	elif product == 'merra-2':
-		s3_key = f"rasters/{product}.{date}.{collection}.tif"
-		outFile = os.path.join(out_dir,f"{product}.{date}.{collection}.tif")
+		s3_key = f"rasters/{product}.{date}.{collection}.tif" # file location on S3
+		outFile = os.path.join(out_dir,f"{product}.{date}.{collection}.tif") # file name on disk
 		results.append(outFile)
 		try:
-			s3_client.download_file(s3_bucket,s3_key,outFile)
-		except ClientError:
+			s3_client.download_file(s3_bucket,s3_key,outFile) # actually pull file
+		except ClientError: # thrown if file doesn't exist
 			log.error("File not available on S3")
 			return ()
-		except Exception:
+		except Exception: # other exceptions suggest failure during download
 			log.exception("File download from S3 failed")
 			return ()
 
+	# for variable-specific merra products, parse out variable and call
+	# this function again
+	elif 'merra-2' in product: # one of "merra-2-max","merra-2-mean", "merra-2-min"
+		collection = product.split("-")[-1]
+		return pullFromS3(product=product,date=date,out_dir=out_dir,collection=collection)
+
+	# other ancillary products
 	elif product in ["swi","chirps","chirps-prelim"]:
-		s3_key = f"rasters/{product}.{date}.tif"
-		outFile = os.path.join(out_dir,f"{product}.{date}.tif")
+		s3_key = f"rasters/{product}.{date}.tif" # location on S3
+		outFile = os.path.join(out_dir,f"{product}.{date}.tif") # output file name to disk
 		results.append(outFile)
 		try:
-			s3_client.download_file(s3_bucket,s3_key,outFile)
-		except ClientError:
+			s3_client.download_file(s3_bucket,s3_key,outFile) # pull from S3
+		except ClientError: # thrown if file does not exist
 			log.error("File not available on S3")
 			return ()
-		except Exception:
+		except Exception: # other exceptions suggest failure during download
 			log.exception("File download from S3 failed")
 			return ()
 	else: # it's an NDVI product
-		year, doy = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j").split(".")
-		s3_key = f"rasters/{product}.{year}.{doy}.tif"
-		outFile = os.path.join(out_dir,f"{product}.{year}.{doy}.tif")
+		year, doy = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j").split(".") # date must be reformatted to YYYY.DOY
+		s3_key = f"rasters/{product}.{year}.{doy}.tif" # location on S3
+		outFile = os.path.join(out_dir,f"{product}.{year}.{doy}.tif") # file location on disk
 		results.append(outFile)
 		try:
-			s3_client.download_file(s3_bucket,s3_key,outFile)
-		except ClientError:
+			s3_client.download_file(s3_bucket,s3_key,outFile) # Pull from S3
+		except ClientError: # thrown if file does not exist
 			log.error("File not available on S3")
 			return ()
-		except Exception:
+		except Exception: # other exceptions suggest failure during download
 			log.exception("File download from S3 failed")
 			return ()
 
@@ -874,9 +868,10 @@ def isAvailable(product:str, date:str) -> bool:
 		except:
 			raise BadInputError(f"Failed to parse input '{date}' as a date. Please use format YYYY-MM-DD or YYYY.DOY")
 
+	# merra-2 always requires special behavior
 	if product in ["merra-2", "merra-2-min", "merra-2-max", "merra-2-mean"]:
 		product = "merra-2"
-		allGood = True
+		allGood = True # This flag is not actually used...
 		for i in range(5): # we are collecting the requested date along with 4 previous days
 			mDate = datetime.strptime(date,"%Y-%m-%d") - timedelta(days=i)
 			mYear = mDate.strftime("%Y")
@@ -888,7 +883,7 @@ def isAvailable(product:str, date:str) -> bool:
 				pageText = str(pageObject.read())
 				ex = re.compile(f'MERRA2\S*{mYear}{mMonth}{mDay}.nc4') # regular expression that matches file name of desired date file
 				mFileName = re.search(ex,pageText).group() # matches desired file name from web page
-			except HTTPError: # if any file in the range is missing, don't generate the mosaic at all
+			except HTTPError: # if any file in the desired date range is missing, the composite is incomplete. So we return False.
 				return False
 			except AttributeError:
 				log.warning(f"Failed to find Merra-2 URL for {mDate.strftime('%Y-%m-%d')}. We seem to have caught the merra-2 team in the middle of uploading their data... check {pageUrl} to be sure.")
@@ -901,7 +896,9 @@ def isAvailable(product:str, date:str) -> bool:
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			## CHIRPS data has been moved off of FTP server onto HTTPS
+			# url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
 			## try to open url
 			try:
 				fh = urlopen(Request(url))
@@ -915,7 +912,7 @@ def isAvailable(product:str, date:str) -> bool:
 		cYear = cDate.strftime("%Y")
 		cMonth = cDate.strftime("%m").zfill(2)
 		cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-		url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
+		url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif"
 		## try to open url
 		try:
 			fh = urlopen(Request(url))
@@ -944,6 +941,7 @@ def isAvailable(product:str, date:str) -> bool:
 		else:
 			return False
 
+	# input product not supported
 	else:
 		raise BadInputError(f"Product '{product}' not recognized")
 

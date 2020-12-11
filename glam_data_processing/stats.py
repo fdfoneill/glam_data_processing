@@ -23,6 +23,7 @@ from rasterio.windows import Window
 # repeatedly used functions and objects
 
 def getWindows(width, height, blocksize) -> list:
+	"""Given width, height, and block size, returns a list of rasterio.windows.Window objects covering entire image"""
 	hnum, vnum = width, height
 	windows = []
 	for hstart in range(0, hnum, blocksize):
@@ -39,40 +40,22 @@ def getWindows(width, height, blocksize) -> list:
 
 
 def getValidRange(dtype:str) -> tuple:
+	"""Returns minimum and maximum valid values in given data type (e.g. int32)"""
 	try:
 		if (dtype == "byte") or ("int" in dtype):
 			try:
 				return (np.iinfo(dtype).min, np.iinfo(dtype).max)
 			except:
 				raise ValueError
-		# elif ("float" in dtype):
-		# 	try:
-		# 		# return (np.finfo(dtype).min, np.finfo(dtype).max)
-		# 		return (0, np.finfo(dtype).max)
-		# 	except:
-		# 		raise ValueError
 		else:
 			raise ValueError
 	except ValueError:
 		raise ValueError(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
-	# validRange = {
-	# 	"byte":(-128,127),
-	# 	"uint8":(0,255),
-	# 	"int8":(-128,127),
-	# 	"uint16":(0,65535),
-	# 	"int16":(-32768,32767),
-	# 	"uint32":(0,4294967295),
-	# 	"int32":(-2147483648,2147483647)
-	# }
-	# try:
-	# 	return validRange[dtype]
-	# except KeyError:
-	# 	log.exception(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
 
 ##################################################################################################################
 
 
-# ZONAL STATS and helper functions 
+# ZONAL STATS and helper functions
 
 def _mp_worker_ZS(args:tuple) -> dict:
 	"""A function for use with the multiprocessing
@@ -112,9 +95,9 @@ def _mp_worker_ZS(args:tuple) -> dict:
 
 	# get admin raster info
 	admin_handle = rasterio.open(admin_path,'r')
-	admin_noDataVal = admin_handle.meta['nodata']	
-	admin_data = admin_handle.read(1,window=targetwindow)	
-	admin_handle.close()	
+	admin_noDataVal = admin_handle.meta['nodata']
+	admin_data = admin_handle.read(1,window=targetwindow)
+	admin_handle.close()
 
 	# create empty output dictionary
 	out_dict = {}
@@ -122,13 +105,13 @@ def _mp_worker_ZS(args:tuple) -> dict:
 	# loop over all admin codes present in admin_data
 	uniqueadmins = np.unique(admin_data[admin_data != admin_noDataVal]) # exclude nodata value
 	for admin_code in uniqueadmins:
-		arable_pixels = int((admin_data[(admin_data == admin_code) & (mask_data == 1)]).size)
-		if arable_pixels == 0:
+		arable_pixels = int((admin_data[(admin_data == admin_code) & (mask_data == 1)]).size) # count pixels that match admin code and aren't nodata
+		if arable_pixels == 0: # skip admins with no arable pixels
 			continue
-		masked = np.array(product_data[(product_data != product_noDataVal) & (mask_data == 1) & (admin_data == admin_code)], dtype='int64')
-		percent_arable = (float(masked.size) / float(arable_pixels)) * 100
-		value = (masked.mean() if (masked.size > 0) else 0)
-		out_dict[admin_code] = {"value":value,"arable_pixels":arable_pixels,"percent_arable":percent_arable}
+		masked = np.array(product_data[(product_data != product_noDataVal) & (mask_data == 1) & (admin_data == admin_code)], dtype='int64') # generate array of only valid pixels (not nodata, in admin, and cropped)
+		percent_arable = (float(masked.size) / float(arable_pixels)) * 100 # calculate percentage of all arable pixels that are visible today
+		value = (masked.mean() if (masked.size > 0) else 0) # mean value of visible arable pixels
+		out_dict[admin_code] = {"value":value,"arable_pixels":arable_pixels,"percent_arable":percent_arable} # update dictionary
 
 	return out_dict
 
@@ -144,6 +127,7 @@ def _update_ZS(stored_dict,this_dict) -> dict:
 		New data with which to update stored_dict
 	"""
 	out_dict = stored_dict
+	# loop over admin zones in this_dict
 	for k in this_dict.keys():
 		this_info = this_dict[k]
 		try:
@@ -181,7 +165,7 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 	"""A function for calculating zonal statistics on a raster image
 
 	Returns a dictionary of the form:
-		{zone_id:{'value':VALUE,'arable_pixels':VALUE,'percent_arable':VALUE},...}
+		{zone_id_1:{'value':VALUE,'arable_pixels':VALUE,'percent_arable':VALUE},zone_id_2:...}
 
 	Parameters
 	----------
@@ -195,7 +179,7 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 		Number of cores to use for parallel processing. Default is 1
 	block_scale_factor:int
 		Relative size of processing windows compared to product_path native block
-		size. Default is 8, calculated to be optimal for all n_cores (1-50) on 
+		size. Default is 8, calculated to be optimal for all n_cores (1-50) on
 		GEOG cluster node 18
 	default_block_size:int
 		If product_path is not tiled, this argument is used as the block size. In
@@ -224,21 +208,10 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 
 	# get windows
 	windows = getWindows(hnum, vnum, blocksize)
-	# windows = []
-	# # log.info(type(hnum))
-	# # log.info(type(blocksize))
-	# for hstart in range(0, hnum, blocksize):
-	# 	for vstart in range(0, vnum, blocksize):
-	# 		hwin = blocksize
-	# 		vwin = blocksize
-	# 		if ((hstart + blocksize) > hnum):
-	# 			hwin = (hnum % blocksize)
-	# 		if ((vstart + blocksize) > vnum):
-	# 			vwin = (vnum % blocksize)
-	# 		targetwindow = Window(hstart, vstart, hwin, vwin)
-	# 		windows += [targetwindow]
 
-	# generate parallel args
+	# multiprocessing.map only works with functions that take exactly
+	# one argument. We get around this by packing all the arguments we
+	# need into a tuple, then unpacking it *within* the _worker function.
 	parallel_args = [(w, product_path, mask_path, admin_path) for w in windows]
 
 	# note progress
@@ -266,6 +239,9 @@ def zonalStats(product_path:str, mask_path:str, admin_path:str, n_cores: int = 1
 ########################################################################################################################################################
 
 # PERCENTILES
+
+## The functions below work, but aren't used in the current GLAM system.
+## Documentation is therefore sparse.
 
 def _mp_worker_PCT(args:tuple) -> np.array:
 	"""A multiprocessing worker function to extract the histogram of a raster window
@@ -404,5 +380,5 @@ def percentiles(raster_path:str, percentiles:list = [10,90], binwidth:int = 10, 
 		bin_index += 1 # increment bin index
 		if (bin_index >= len(out_counts)):
 			raise ValueError("Ran out of bins before reaching all desired percentiles! Check algorithm.")
-	
+
 	return out_values
