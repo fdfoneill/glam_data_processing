@@ -13,11 +13,11 @@ log = logging.getLogger(__name__)
 
 import shutil, subprocess
 from .exceptions import BadInputError
-from octvi import supported_products
 from rasterio.windows import Window
 import numpy as np
 
 # constants
+NDVI_PRODUCTS = ["MOD09Q1","MOD13Q1","MYD09Q1","MYD13Q1","VNP09H1","MOD09Q1N","MOD13Q4N","MOD09CMG","VNP09CMG"]
 ANCILLARY_PRODUCTS = ["chirps","chirps-prelim","swi","merra-2"]
 RASTER_DIR = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters")
 
@@ -52,7 +52,7 @@ def getMetadata(image_path:str) -> dict:
     product_raw = name_parts[0]
     metadata['product'] = product_raw
     ## ndvi products use YYYY.DOY date format
-    if product_raw in supported_products:
+    if product_raw in NDVI_PRODUCTS:
         metadata['category'] = "NDVI"
         metadata['date_format'] = "%Y.%j"
         year, doy = name_parts[1:3]
@@ -97,7 +97,7 @@ def cloud_optimize_inPlace(in_file:str) -> None:
 
 	## add tiling to file
 	cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW", "-co", "PREDICTOR=2"]
-	if getMetadata(in_file)['product'] in supported_products:
+	if getMetadata(in_file)['product'] in NDVI_PRODUCTS:
 		cloudOpArgs.append("-co")
 		cloudOpArgs.append("BIGTIFF=YES")
 	subprocess.call(cloudOpArgs)

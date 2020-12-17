@@ -12,9 +12,8 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger(__name__)
 
 from .util import *
-import gdal, glob, multiprocessing, rasterio
+import glob, multiprocessing, rasterio
 import numpy as np
-from octvi import supported_products
 
 BASELINE_DIR = os.path.join(RASTER_DIR,'baselines')
 PRODUCT_DIR = os.path.join(RASTER_DIR,'products')
@@ -58,7 +57,7 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
         width = tempmeta.width
         height = tempmeta.height
     # add BIGTIFF where necessary
-    if product in supported_products:
+    if product in NDVI_PRODUCTS:
         metaprofile['BIGTIFF'] = 'YES'
 
     # set output filenames
@@ -127,7 +126,7 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
 def _getMatchingBaselineDate(product,date:datetime) -> str:
     """Returns baseline date that corresponds to given image date"""
     # for ndvi and merra-2 products, we can just use DOY
-    if (product in supported_products) or ("merra-2" in product):
+    if (product in NDVI_PRODUCTS) or ("merra-2" in product):
         return date.strftime("%j")
     # for chirps we return month-day; as all chirps datasets
     # fall on the same mm-dd pattern every year
