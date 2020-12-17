@@ -79,10 +79,13 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
     blocksize = metaprofile['blockxsize'] * int(block_scale_factor)
     windows = getWindows(width,height,blocksize)
 
+    # use windows to create parallel args
+    parallel_args = [(w, input_paths, metaprofile['dtype']) for w in windows]
+
     # do multiprocessing
     p = multiprocessing.Pool(n_workers)
 
-    for win, values in p.imap(_mp_worker, windows):
+    for win, values in p.imap(_mp_worker, parallel_args):
         mean_5yr_handle.write(values['mean_5year'], window=win, indexes=1)
         median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
         mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
@@ -102,7 +105,7 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
     log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
 
     # cloud-optimize outputs
-    output_paths = (mean_5yr_name, median_5yr_name,mean_10yr_name, median_10yr_name)
+    output_paths = (mean_5yr_name, median_5yr_name, mean_10yr_name, median_10yr_name)
 
     p = multiprocessing.Pool(len(output_paths))
     p.imap(cloud_optimize_inPlace,output_paths)
@@ -203,7 +206,7 @@ def _mp_worker(args) -> tuple:
             Ordered list of filepaths
 
     """
-    targetwindow, input_paths,dtype = args
+    targetwindow, input_paths, dtype = args
 
     # track how many years we have looped over for the anomaly
     outputstore = {}
