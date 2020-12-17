@@ -17,6 +17,7 @@ import shutil, subprocess
 
 # constants
 ANCILLARY_PRODUCTS = ["chirps","chirps-prelim","swi","merra-2"]
+RASTER_DIR = os.path.join("/gpfs","data1","cmongp2","GLAM","rasters")
 
 
 def getMetadata(image_path:str) -> dict:
@@ -36,6 +37,7 @@ def getMetadata(image_path:str) -> dict:
         product: name of input file product
         category: whether input is NDVI or ancillary
         date_format: '%Y.%j' or '%Y-%m-%d'
+        date_object: date as datetime object
         date: date string in format YYYY-MM-DD
         year: year string
         doy: 3-digit 0-padded doy string
@@ -52,7 +54,8 @@ def getMetadata(image_path:str) -> dict:
         metadata['category'] = "NDVI"
         metadata['date_format'] = "%Y.%j"
         year, doy = name_parts[1:3]
-        date = datetime.strptime(f"{year}.{doy}","%Y.%j").strftime("%Y-%m-%d")
+        date_live = datetime.strptime(f"{year}.{doy}","%Y.%j")
+        date = date_live.strftime("%Y-%m-%d")
     ## ancillary products use YYYY-MM-DD date format
     elif product_raw in ANCILLARY_PRODUCTS:
         metadata['category'] = "ancillary"
@@ -64,6 +67,7 @@ def getMetadata(image_path:str) -> dict:
     else:
         raise BadInputError(f"Failed to parse product from '{basename}'")
     # write date variables to metadata dict
+    metadata['date_obj'] = date_live
     metadata['date'] = date
     metadata['year'] = year
     metadata['doy'] = doy
