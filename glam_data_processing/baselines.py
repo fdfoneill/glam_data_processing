@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 
 from .util import *
 from octvi import supported_products
-import gdal
+import gdal, glob
 
 BASELINE_DIR = os.path.join(RASTER_DIR,'baselines')
 PRODUCT_DIR = os.path.join(RASTER_DIR,'products')
