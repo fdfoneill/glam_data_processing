@@ -73,7 +73,7 @@ def _isClosestSwiDoy(doy_1:int, doy_2:int) -> bool:
     return min((doy_1-doy_2) % 365, (doy_2 - doy_1) % 365) < 3
 
 
-def _listFiles(product,date:datetime) -> list:
+def _listFiles(product,date:datetime,n_years_to_consider = 10) -> list:
     """Returns a list of matching files, one from each year
     Output is sorted by year; latest first
     """
@@ -84,7 +84,7 @@ def _listFiles(product,date:datetime) -> list:
     for f in allFiles:
         meta = getMetadata(f)
         # we only go back 10 years; skip file if gap is larger
-        if int(date.strftime("%Y")) - int(meta['year']) > 10:
+        if int(date.strftime("%Y")) - int(meta['year']) > (n_years_to_consider - 1):
             continue
         years_considered.append(int(meta['year']))
         years_considered = list(set(years_considered)) # remove duplicate years
@@ -93,7 +93,7 @@ def _listFiles(product,date:datetime) -> list:
         if _getMatchingBaselineDate(product,meta['date_obj']) == baseline_date:
             output_files.append(f)
     # check that we have exactly one file from each year
-    n_years_considered = ((max(years_considered) - min(years_considered)) + 1)
+    n_years_considered = n_years_to_consider # ((max(years_considered) - min(years_considered)) + 1)
     if len(output_files) != n_years_considered:
         log.warning(f"{n_years_considered} years considered but {len(output_files)} files collected!")
     # sort list by file year; latest first
