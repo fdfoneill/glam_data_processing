@@ -11,7 +11,6 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 #logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 
-
 from .util import *
 from octvi import supported_products
 import gdal
