@@ -4,7 +4,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger("glam_command_line")
 
 import argparse, glob, json, octvi, subprocess, sys
-import glam_data_processing as glam
+import glam_data_processing.legacy as glam
 from getpass import getpass
 from datetime import datetime
 
@@ -16,7 +16,7 @@ def getYesNo(message:str) -> bool:
 		return False
 	else:
 		print("Error: Input not recognized. Please select one of: [Y/N]")
-		return getYesNo(message)	
+		return getYesNo(message)
 
 def setCredentials():
 	## get existing credentials
@@ -268,7 +268,7 @@ def updateData():
 						image.setStatus('statGen',True)
 						speak("--stats generated")
 					# generate anomaly baselines
-					if (not args.no_anomaly_baseline) and (not (image.product in ["chirps-prelim","MOD13Q4N"])):
+					if (not args.no_anomaly_baseline) and (not (image.product in ["mera-2","chirps-prelim","MOD13Q4N"])):
 						anomaly_args = ["python",anomaly_script,p,"-n","20"]
 						try:
 							subprocess.call(anomaly_args)
