@@ -1,11 +1,11 @@
-class BadInputError(Exception):   
+class BadInputError(Exception):
 	def __init__(self, data):
 		self.data = data
 	def __str__(self):
 		return repr(self.data)
 
-class UploadFailureError(Exception):   
-	def __init__(self, data):	
+class UploadFailureError(Exception):
+	def __init__(self, data):
 		self.data = data
 	def __str__(self):
 		return repr(self.data)
