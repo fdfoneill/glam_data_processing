@@ -55,9 +55,10 @@ def _getMatchingBaselineDate(product,date:datetime) -> str:
     # baseline period is closest to the input date
     elif product == "swi":
         doy = int(date.strftime("%j"))
-        for baseline_doy in _getSwiBaselinePeriods():
-            if _isClosestSwiDoy(doy, baseline_doy):
-                return str(baseline_doy).zfill(3)
+        periods = _getSwiBaselinePeriods()
+        while doy not in periods:
+            doy = (doy - 1) % 365
+        return str(doy).zfill(3)
     else:
         raise BadInputError(f"Product '{product}' not recognized")
 
@@ -87,20 +88,10 @@ def _listFiles(product,date:datetime) -> list:
             continue
         years_considered.append(int(meta['year']))
         years_considered = list(set(years_considered)) # remove duplicate years
-        # for ndvi and merra-2 products, we can just use DOY
-        if (product in supported_products) or ("merra-2" in product):
-            if meta['doy'] == date.strftime("%j"):
-                output_files.append(f)
-        # for chirps we rely on month and day
-        elif product == "chirps":
-            if date.strftime("%m-%d") == meta['date_obj'].strftime("%m-%d"):
-                output_files.append(f)
-        # our old enemy, swi... check if the doy is within 3 days
-        elif product == "swi":
-            if _isClosestSwiDoy(int(date.strftime("%j")),int(meta['doy'])):
-                output_files.append(f)
-        else:
-            raise BadInputError(f"Product '{product}' not recognized")
+        # find matching baseline date for input and current file; add if they match
+        baseline_date = _getMatchingBaselineDate(product,date)
+        if _getMatchingBaselineDate(product,meta['date_obj']) == baseline_date:
+            output_files.append(f)
     # check that we have exactly one file from each year
     n_years_considered = ((max(years_considered) - min(years_considered)) + 1)
     if len(output_files) != n_years_considered:
