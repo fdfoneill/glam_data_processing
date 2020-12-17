@@ -86,7 +86,7 @@ def getMetadata(image_path:str) -> dict:
 def cloud_optimize_inPlace(in_file:str) -> None:
 	"""Takes path to input and output file location. Reads tif at input location and writes cloud-optimized geotiff of same data to output location."""
 	## add overviews to file
-	cloudOpArgs = ["gdaladdo",in_file]
+	cloudOpArgs = ["gdaladdo",in_file,"-quiet"]
 	subprocess.call(cloudOpArgs)
 
 	## copy file
@@ -97,7 +97,7 @@ def cloud_optimize_inPlace(in_file:str) -> None:
 
 	## add tiling to file
 	cloudOpArgs = ["gdal_translate",intermediate_file,in_file,'-q','-co', "TILED=YES",'-co',"COPY_SRC_OVERVIEWS=YES",'-co', "COMPRESS=LZW", "-co", "PREDICTOR=2"]
-	if product in supported_products:
+	if getMetadata(in_file)['product'] in supported_products:
 		cloudOpArgs.append("-co")
 		cloudOpArgs.append("BIGTIFF=YES")
 	subprocess.call(cloudOpArgs)
