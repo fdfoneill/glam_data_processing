@@ -81,7 +81,7 @@ def _listFiles(product,date:datetime) -> list:
     for f in allFiles:
         meta = getMetadata(f)
         # we only go back 10 years; skip file if gap is larger
-        if date.strftime("%Y") - meta['year'] > 10:
+        if int(date.strftime("%Y")) - int(meta['year']) > 10:
             continue
         years_considered.append(int(meta['year']))
         years_considered = list(set(years_considered)) # remove duplicate years
@@ -95,7 +95,7 @@ def _listFiles(product,date:datetime) -> list:
                 output_files.append(f)
         # our old enemy, swi... check if the doy is within 3 days
         elif product == "swi":
-            if _isClosestSwiDoy(date.strftime("%j"),meta['doy']):
+            if _isClosestSwiDoy(int(date.strftime("%j")),int(meta['doy'])):
                 output_files.append(f)
         else:
             raise BadInputError(f"Product '{product}' not recognized")
