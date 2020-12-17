@@ -45,76 +45,76 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
     startTime = datetime.now()
 
     # create dict of anomaly baseline folders for each baseline type
-	baseline_locations = {anomaly_type:os.path.join(BASELINE_DIR,product,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']}
+    baseline_locations = {anomaly_type:os.path.join(BASELINE_DIR,product,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']}
     # get list of input data files
     input_paths = _listFiles(product,date)
     # check to make sure we got at least 10
-	if len(input_paths) < 10:
-		raise OperationalError(f"Only {len(input_paths)} input image paths found")
+    if len(input_paths) < 10:
+        raise OperationalError(f"Only {len(input_paths)} input image paths found")
     # get raster metadata and dimensions
-	with rasterio.open(input_paths[0]) as tempmeta:
-    	metaprofile = tempmeta.profile
-    	width = tempmeta.width
-    	height = tempmeta.height
-	# add BIGTIFF where necessary
-	if product in supported_products:
-		metaprofile['BIGTIFF'] = 'YES'
+    with rasterio.open(input_paths[0]) as tempmeta:
+        metaprofile = tempmeta.profile
+        width = tempmeta.width
+        height = tempmeta.height
+    # add BIGTIFF where necessary
+    if product in supported_products:
+        metaprofile['BIGTIFF'] = 'YES'
 
     # set output filenames
     output_date = _getMatchingBaselineDate(product,date)
-	mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_date}.anomaly_mean_5year.tif")
-	median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_date}.anomaly_median_5year.tif")
-	mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_date}.anomaly_mean_10year.tif")
-	median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{output_date}.anomaly_median_10year.tif")
+    mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_date}.anomaly_mean_5year.tif")
+    median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_date}.anomaly_median_5year.tif")
+    mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_date}.anomaly_mean_10year.tif")
+    median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{output_date}.anomaly_median_10year.tif")
 
     # open output handles
-	log.debug("Opening handles")
-	mean_5yr_handle = rasterio.open(mean_5yr_name, 'w', **metaprofile)
-	median_5yr_handle = rasterio.open(median_5yr_name, 'w', **metaprofile)
-	mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
-	median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
+    log.debug("Opening handles")
+    mean_5yr_handle = rasterio.open(mean_5yr_name, 'w', **metaprofile)
+    median_5yr_handle = rasterio.open(median_5yr_name, 'w', **metaprofile)
+    mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
+    median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
 
     # set block size and get windows
     blocksize = metaprofile['blockxsize'] * int(block_scale_factor)
     windows = getWindows(width,height,blocksize)
 
     # do multiprocessing
-	log.info(f"Processing ({sub_product} {new_image.date}) | {n_workers} parallel processes")
-	parallelStartTime = datetime.now()
-	p = multiprocessing.Pool(n_workers)
+    log.info(f"Processing ({sub_product} {new_image.date}) | {n_workers} parallel processes")
+    parallelStartTime = datetime.now()
+    p = multiprocessing.Pool(n_workers)
 
-	for win, values in p.imap(_mp_worker, windows):
-		mean_5yr_handle.write(values['mean_5year'], window=win, indexes=1)
-		median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
-		mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
-		median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
-
-	## close pool
-	p.close()
-	p.join()
-
-    ## close handles
-	mean_5yr_handle.close()
-	median_5yr_handle.close()
-	mean_10yr_handle.close()
-	median_10yr_handle.close()
-
-    # cloud-optimize new anomalies
-	log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
-	cogStartTime = datetime.now()
-
-    # cloud-optimize outputs
-	output_paths = (mean_5yr_name, median_5yr_name,mean_10yr_name, median_10yr_name)
-
-	p = multiprocessing.Pool(len(output_paths))
-	p.imap(cloud_optimize_inPlace,output_paths)
+    for win, values in p.imap(_mp_worker, windows):
+        mean_5yr_handle.write(values['mean_5year'], window=win, indexes=1)
+        median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
+        mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
+        median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
 
     ## close pool
-	p.close()
-	p.join()
+    p.close()
+    p.join()
+
+    ## close handles
+    mean_5yr_handle.close()
+    median_5yr_handle.close()
+    mean_10yr_handle.close()
+    median_10yr_handle.close()
+
+    # cloud-optimize new anomalies
+    log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
+    cogStartTime = datetime.now()
+
+    # cloud-optimize outputs
+    output_paths = (mean_5yr_name, median_5yr_name,mean_10yr_name, median_10yr_name)
+
+    p = multiprocessing.Pool(len(output_paths))
+    p.imap(cloud_optimize_inPlace,output_paths)
+
+    ## close pool
+    p.close()
+    p.join()
 
     # if time==True, log total time for anomaly generation
-	endTime = datetime.now()
+    endTime = datetime.now()
     if time:
         log.info(f"Finished in {endTime-startTime}")
 
