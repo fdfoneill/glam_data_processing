@@ -73,7 +73,9 @@ def _isClosestSwiDoy(doy_1:int, doy_2:int) -> bool:
 
 
 def _listFiles(product,date:datetime) -> list:
-    """Returns a list of matching files, one from each year"""
+    """Returns a list of matching files, one from each year
+    Output is sorted by year; latest first
+    """
     allFiles = glob.glob(os.path.join(PRODUCT_DIR,product,"*.tif"))
     output_files = []
     years_considered = []
@@ -103,6 +105,8 @@ def _listFiles(product,date:datetime) -> list:
     n_years_considered = ((max(years_considered) - min(years_considered)) + 1)
     if len(output_files) != n_years_considered:
         log.warning(f"{n_years_considered} years considered but {len(output_files)} files collected!")
+    # sort list by file year; latest first
+    output_files = sorted(output_files, key=lambda filepath: int(getMetadata(filepath)['year']), reverse=True)
     # return the output list
     return output_files
 
