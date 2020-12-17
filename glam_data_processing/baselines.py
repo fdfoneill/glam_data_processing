@@ -19,7 +19,7 @@ BASELINE_DIR = os.path.join(RASTER_DIR,'baselines')
 PRODUCT_DIR = os.path.join(RASTER_DIR,'products')
 
 
-def updateBaselines(product, date) -> dict:
+def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1, time=False) -> dict:
     """Updates anomaly baselines
 
     ***
@@ -27,7 +27,10 @@ def updateBaselines(product, date) -> dict:
     Parameters
     ----------
     product:str
-    date:str
+    date:datetime
+    n_workers:int
+    block_scale_factor:int
+    time:bool
 
     Returns
     -------
@@ -39,7 +42,85 @@ def updateBaselines(product, date) -> dict:
             files that were updated
     """
 
-    return {'product':None,'paths':()}
+    startTime = datetime.now()
+
+    # create dict of anomaly baseline folders for each baseline type
+	baseline_locations = {anomaly_type:os.path.join(BASELINE_DIR,product,anomaly_type) for anomaly_type in ["mean_5year","median_5year",'mean_10year','median_10year']}
+    # get list of input data files
+    input_paths = _listFiles(product,date)
+    # check to make sure we got at least 10
+	if len(input_paths) < 10:
+		raise OperationalError(f"Only {len(input_paths)} input image paths found")
+    # get raster metadata and dimensions
+	with rasterio.open(input_paths[0]) as tempmeta:
+    	metaprofile = tempmeta.profile
+    	width = tempmeta.width
+    	height = tempmeta.height
+	# add BIGTIFF where necessary
+	if product in supported_products:
+		metaprofile['BIGTIFF'] = 'YES'
+
+    # set output filenames
+    output_date = _getMatchingBaselineDate(product,date)
+	mean_5yr_name = os.path.join(baseline_locations["mean_5year"], f"{product}.{output_date}.anomaly_mean_5year.tif")
+	median_5yr_name = os.path.join(baseline_locations["median_5year"], f"{product}.{output_date}.anomaly_median_5year.tif")
+	mean_10yr_name = os.path.join(baseline_locations["mean_10year"], f"{product}.{output_date}.anomaly_mean_10year.tif")
+	median_10yr_name = os.path.join(baseline_locations["median_10year"],f"{product}.{output_date}.anomaly_median_10year.tif")
+
+    # open output handles
+	log.debug("Opening handles")
+	mean_5yr_handle = rasterio.open(mean_5yr_name, 'w', **metaprofile)
+	median_5yr_handle = rasterio.open(median_5yr_name, 'w', **metaprofile)
+	mean_10yr_handle = rasterio.open(mean_10yr_name, 'w', **metaprofile)
+	median_10yr_handle = rasterio.open(median_10yr_name, 'w', **metaprofile)
+
+    # set block size and get windows
+    blocksize = metaprofile['blockxsize'] * int(block_scale_factor)
+    windows = getWindows(width,height,blocksize)
+
+    # do multiprocessing
+	log.info(f"Processing ({sub_product} {new_image.date}) | {n_workers} parallel processes")
+	parallelStartTime = datetime.now()
+	p = multiprocessing.Pool(n_workers)
+
+	for win, values in p.imap(_mp_worker, windows):
+		mean_5yr_handle.write(values['mean_5year'], window=win, indexes=1)
+		median_5yr_handle.write(values['median_5year'], window=win, indexes=1)
+		mean_10yr_handle.write(values['mean_10year'], window=win, indexes=1)
+		median_10yr_handle.write(values['median_10year'], window=win, indexes=1)
+
+	## close pool
+	p.close()
+	p.join()
+
+    ## close handles
+	mean_5yr_handle.close()
+	median_5yr_handle.close()
+	mean_10yr_handle.close()
+	median_10yr_handle.close()
+
+    # cloud-optimize new anomalies
+	log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
+	cogStartTime = datetime.now()
+
+    # cloud-optimize outputs
+	output_paths = (mean_5yr_name, median_5yr_name,mean_10yr_name, median_10yr_name)
+
+	p = multiprocessing.Pool(len(output_paths))
+	p.imap(cloud_optimize_inPlace,output_paths)
+
+    ## close pool
+	p.close()
+	p.join()
+
+    # if time==True, log total time for anomaly generation
+	endTime = datetime.now()
+    if time:
+        log.info(f"Finished in {endTime-startTime}")
+
+    # return dict
+    return {'product':product, 'paths':output_paths}
+
 
 
 def _getMatchingBaselineDate(product,date:datetime) -> str:
@@ -69,10 +150,6 @@ def _getSwiBaselinePeriods() -> list:
     return [i for i in range(1,366,5)]
 
 
-def _isClosestSwiDoy(doy_1:int, doy_2:int) -> bool:
-    return min((doy_1-doy_2) % 365, (doy_2 - doy_1) % 365) < 3
-
-
 def _listFiles(product,date:datetime,n_years_to_consider = 10) -> list:
     """Returns a list of matching files, one from each year
     Output is sorted by year; latest first
@@ -86,6 +163,9 @@ def _listFiles(product,date:datetime,n_years_to_consider = 10) -> list:
         # we only go back 10 years; skip file if gap is larger
         if int(date.strftime("%Y")) - int(meta['year']) > (n_years_to_consider - 1):
             continue
+        # also skip extra doys from leap years
+        if int(meta['doy']) > 365:
+            continue
         years_considered.append(int(meta['year']))
         years_considered = list(set(years_considered)) # remove duplicate years
         # find matching baseline date for input and current file; add if they match
@@ -93,7 +173,7 @@ def _listFiles(product,date:datetime,n_years_to_consider = 10) -> list:
         if _getMatchingBaselineDate(product,meta['date_obj']) == baseline_date:
             output_files.append(f)
     # check that we have exactly one file from each year
-    n_years_considered = n_years_to_consider # ((max(years_considered) - min(years_considered)) + 1)
+    n_years_considered = ((int(date.strftime("%Y")) - min(years_considered)) + 1)
     if len(output_files) != n_years_considered:
         log.warning(f"{n_years_considered} years considered but {len(output_files)} files collected!")
     # sort list by file year; latest first
@@ -169,20 +249,10 @@ def _mp_worker(args) -> tuple:
             median_10yr_calc[median_10yr_calc.mask==True] = -3000
             outputstore['median_10year'] = median_10yr_calc.astype(dtype)
             del data_10yr, median_10yr_masked, median_10yr_calc
+            # after calculating the 10-year baseline, we can stop opening files
+            inputhandle.close()
+            break
 
-        # if yearscounter == len(input_paths):
-        # 	# Calculate the full time series mean and write it
-        # 	data_full = np.array(valuestore)
-        # 	mean_full_calc = np.ma.average(data_full, axis=0, weights=((data_full >= -1000) * (data_full <= 10000)))
-        # 	mean_full_calc[mean_full_calc.mask==True] = -3000
-        # 	outputstore['mean_full'] = mean_full_calc.astype(dtype)
-        # 	del mean_full_calc
-
-        # 	# Calculate the full time series median and write it
-        # 	median_full_masked = np.ma.masked_outside(data_full, -1000, 10000)
-        # 	median_full_calc = np.ma.median(median_full_masked, axis=0)
-        # 	median_full_calc[median_full_calc.mask==True] = -3000
-        # 	outputstore['median_full'] = median_full_calc.astype(dtype)
-        # 	del data_full, median_full_masked, median_full_calc
+        # don't forget to close the inputhandle!
         inputhandle.close()
     return(targetwindow, outputstore)

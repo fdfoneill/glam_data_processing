@@ -12,6 +12,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger(__name__)
 
 # import other required modules
+from .util import getWindows, getValidRange
 import rasterio#, dask, xarray
 import numpy as np
 #from dask.distributed import Client
@@ -19,38 +20,6 @@ from datetime import datetime
 from multiprocessing import Pool
 from rasterio.windows import Window
 
-
-# repeatedly used functions and objects
-
-def getWindows(width, height, blocksize) -> list:
-	"""Given width, height, and block size, returns a list of rasterio.windows.Window objects covering entire image"""
-	hnum, vnum = width, height
-	windows = []
-	for hstart in range(0, hnum, blocksize):
-		for vstart in range(0, vnum, blocksize):
-			hwin = blocksize
-			vwin = blocksize
-			if ((hstart + blocksize) > hnum):
-				hwin = (hnum % blocksize)
-			if ((vstart + blocksize) > vnum):
-				vwin = (vnum % blocksize)
-			targetwindow = Window(hstart, vstart, hwin, vwin)
-			windows += [targetwindow]
-	return windows
-
-
-def getValidRange(dtype:str) -> tuple:
-	"""Returns minimum and maximum valid values in given data type (e.g. int32)"""
-	try:
-		if (dtype == "byte") or ("int" in dtype):
-			try:
-				return (np.iinfo(dtype).min, np.iinfo(dtype).max)
-			except:
-				raise ValueError
-		else:
-			raise ValueError
-	except ValueError:
-		raise ValueError(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
 
 ##################################################################################################################
 

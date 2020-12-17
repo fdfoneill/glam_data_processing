@@ -11,9 +11,11 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 #logging.basicConfig(level="DEBUG")
 log = logging.getLogger(__name__)
 
+import shutil, subprocess
 from .exceptions import BadInputError
 from octvi import supported_products
-import shutil, subprocess
+from rasterio.windows import Window
+import numpy as np
 
 # constants
 ANCILLARY_PRODUCTS = ["chirps","chirps-prelim","swi","merra-2"]
@@ -102,3 +104,34 @@ def cloud_optimize_inPlace(in_file:str) -> None:
 
 	## remove intermediate
 	os.remove(intermediate_file)
+
+
+def getWindows(width, height, blocksize) -> list:
+	"""Given width, height, and block size, returns a list of rasterio.windows.Window objects covering entire image"""
+	hnum, vnum = width, height
+	windows = []
+	for hstart in range(0, hnum, blocksize):
+		for vstart in range(0, vnum, blocksize):
+			hwin = blocksize
+			vwin = blocksize
+			if ((hstart + blocksize) > hnum):
+				hwin = (hnum % blocksize)
+			if ((vstart + blocksize) > vnum):
+				vwin = (vnum % blocksize)
+			targetwindow = Window(hstart, vstart, hwin, vwin)
+			windows += [targetwindow]
+	return windows
+
+
+def getValidRange(dtype:str) -> tuple:
+	"""Returns minimum and maximum valid values in given data type (e.g. int32)"""
+	try:
+		if (dtype == "byte") or ("int" in dtype):
+			try:
+				return (np.iinfo(dtype).min, np.iinfo(dtype).max)
+			except:
+				raise ValueError
+		else:
+			raise ValueError
+	except ValueError:
+		raise ValueError(f"Data type '{dtype}' not recognized by glam_data_processing.stats.getValidRange()")
