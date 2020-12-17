@@ -130,7 +130,7 @@ def _mp_worker(args) -> tuple:
             Ordered list of filepaths
 
     """
-    targetwindow, input_paths,dtype = *args
+    targetwindow, input_paths,dtype = args
 
     # track how many years we have looped over for the anomaly
     outputstore = {}
