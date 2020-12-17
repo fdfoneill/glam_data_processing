@@ -79,8 +79,6 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
     windows = getWindows(width,height,blocksize)
 
     # do multiprocessing
-    log.info(f"Processing ({sub_product} {new_image.date}) | {n_workers} parallel processes")
-    parallelStartTime = datetime.now()
     p = multiprocessing.Pool(n_workers)
 
     for win, values in p.imap(_mp_worker, windows):
@@ -101,7 +99,6 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
 
     # cloud-optimize new anomalies
     log.debug("Converting baselines to cloud-optimized geotiffs and ingesting to S3")
-    cogStartTime = datetime.now()
 
     # cloud-optimize outputs
     output_paths = (mean_5yr_name, median_5yr_name,mean_10yr_name, median_10yr_name)
