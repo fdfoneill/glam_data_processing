@@ -12,8 +12,9 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL","INFO"))
 log = logging.getLogger(__name__)
 
 from .util import *
+import gdal, glob, multiprocessing, rasterio
+import numpy as np
 from octvi import supported_products
-import gdal, glob, rasterio
 
 BASELINE_DIR = os.path.join(RASTER_DIR,'baselines')
 PRODUCT_DIR = os.path.join(RASTER_DIR,'products')
