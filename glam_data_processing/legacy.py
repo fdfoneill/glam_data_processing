@@ -1388,7 +1388,7 @@ class Downloader:
 			## return tuple of mosaic paths
 			return tuple(merraOut)
 
-		def downloadChirps(date:str,out_dir:str) -> tuple:
+		def downloadChirps(date:str, out_dir:str, *args, **kwargs) -> tuple:
 			"""
 			Given date of chirps product, downloads file to directory
 			Returns tuple containing file path or empty list if download failed
@@ -1404,29 +1404,35 @@ class Downloader:
 				cDate = datetime.strptime(date,"%Y-%m-%d")
 				cYear = cDate.strftime("%Y")
 				cMonth = cDate.strftime("%m").zfill(2)
+				# convert day-of-month into 1, 2, or 3 depending on which third of the month it
+				# falls in (1-10, 11-20, 21-end). Chirps urls use these integers instead of day
 				cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-				url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+				url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
 
-				## download file at url
-				try:
-					with open(file_zipped,"w+b") as fz:
-						fh = urlopen(Request(url))
-						shutil.copyfileobj(fh,fz)
-				except URLError:
-					log.warning(f"No Chirps file exists for {date}")
-					os.remove(file_zipped)
+				# download the gnuzip file
+				with requests.Session() as session:
+					# not sure if both these steps are strictly necessary. Try removing
+					# one and see if everything breaks!
+					r1 = session.request('get',url)
+					r = session.get(r1.url)
+				# nonexistent imagery gives a 404 response
+				if r.status_code != 200:
+					log.warning(f"Url {url} not found")
 					return ()
+				# write zipped .gz file to disk
+				with open(file_zipped,"wb") as fd: # write data in chunks
+					for chunk in r.iter_content(chunk_size = 1024*1024):
+						fd.write(chunk)
 
-				## checksum
-				observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file (bytes)
-				expectedSize = int(urlopen(Request(url)).info().get("Content-length")) # size anticipated from header (bytes)
+				##CHECKSUM
+				observedSize = int(os.stat(file_zipped).st_size) # size of downloaded file in bytes
+				expectedSize = int(r.headers['Content-Length']) # size of promised file in bytes, extracted from server-delivered headers
 
-				## checksum fails, log warning and return empty list
-				if observedSize != expectedSize:
+				## checksum failure; return empty tuple
+				if observedSize != expectedSize: # checksum failure
 					w=f"WARNING:\nExpected file size:\t{expectedSize} bytes\nObserved file size:\t{observedSize} bytes"
 					log.warning(w)
-					os.remove(file_zipped)
-					return ()
+					return () # no files for you today, but we'll try again tomorrow!
 
 				## use gzip to unzip file to final location
 				tf = file_unzipped.replace(".tif",".UNMASKED.tif")
@@ -1443,15 +1449,11 @@ class Downloader:
 				## project file to sinusoidal
 				prj = project_to_sinusoidal_inPlace(file_unzipped)
 				if prj != 0:
+					log.warning(f"Failed to project {file_unzipped}")
 					return ()
 
 				## cloud-optimize file
 				cloud_optimize_inPlace(file_unzipped)
-
-				## remove corresponding preliminary product, if necessary
-				correspondingPrelimFile = os.path.join(out_dir,f"chirps-prelim.{date}.tif")
-				if os.path.exists(correspondingPrelimFile):
-					os.remove(correspondingPrelimFile)
 
 				## return file path string in tuple
 				return tuple([file_unzipped])
