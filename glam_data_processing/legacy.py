@@ -956,13 +956,17 @@ class Downloader:
 			cYear = cDate.strftime("%Y")
 			cMonth = cDate.strftime("%m").zfill(2)
 			cDay = str(int(np.ceil(int(cDate.strftime("%d"))/10)))
-			url = f"ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
+			url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_dekad/tifs/chirps-v2.0.{cYear}.{cMonth}.{cDay}.tif.gz"
 			## try to open url
-			try:
-				fh = urlopen(Request(url))
-				return True
-			except URLError:
+			with requests.Session() as session:
+				# not sure if both these steps are strictly necessary. Try removing
+				# one and see if everything breaks!
+				r1 = session.request('get',url)
+				r = session.get(r1.url)
+			if r.status_code != 200:
 				return False
+			else:
+				return True
 
 		def checkChirpsPrelim(date:str) -> bool:
 			## get url to be downloaded
