@@ -22,7 +22,7 @@ import geopandas as gpd
 from pyproj import CRS
 from rasterio import features
 from gdalnumeric import *
-print(sys.executable)
+#print(sys.executable)
 
 
 def reprojectRaster(in_raster,model_raster,out_dir,name_override = None):
@@ -84,10 +84,11 @@ def reprojectShapefile(in_shapefile, model_raster, out_dir, name_override=None) 
 	"""
 	shapefile_path = in_shapefile # old variable name; standardized to match function parameters
 	# get out_path from out_dir
-	if name_override is not None:
+	if name_override:
 		out_path = os.path.join(out_dir,name_override)
 	else:
-		out_path = os.path.join(out_dir,os.path.basename(shapefile_path))
+		in_base,in_ext = os.path.splitext(os.path.basename(in_shapefile))
+		out_path = os.path.join(out_dir,in_base+"_REPROJ"+in_ext)
 	# get raster projection as wkt
 	with rasterio.open(model_raster,'r') as img:
 		raster_wkt = img.profile['crs'].to_wkt()
@@ -149,24 +150,6 @@ def resampleRaster(in_raster,model_raster,out_dir,name_override=None):
 	return out_name
 
 
-def shapefileToRaster(in_shapefile,model_raster,out_dir,name_override=None):
-	"""Takes input shapefile and model file; produces raster of matching resolution"""
-	if name_override:
-		out_name = os.path.join(out_dir,name_override)
-	else:
-		in_base = os.path.splitext(os.path.basename(in_shapefile))[0]
-		model_ext = os.path.splitext(model_raster)[1]
-		out_name = os.path.join(out_dir,in_base+"_RASTER"+model_ext)
-	for key_field_name in ["ID","id","OBJECTID","FID"]:
-		try:
-			arcpy.PolygonToRaster_conversion(in_shapefile,"ID",out_name,cell_assignment="MAXIMUM_AREA",cellsize=model_raster)
-			break
-		except:
-			continue
-
-	return out_name
-
-
 def shapefileToRaster(in_shapefile, model_raster, out_dir, name_override=None, zone_field:str = None, dtype = None, *args, **kwargs) -> str:
 	"""Burns shapefile into raster image
 
@@ -197,10 +180,12 @@ def shapefileToRaster(in_shapefile, model_raster, out_dir, name_override=None, z
 	# correct variable names
 	shapefile_path = in_shapefile
 	# get out_path
-	if name_override is not None:
-		out_path = os.path.join(out_dir, name_override)
+	if name_override:
+		out_path = os.path.join(out_dir,name_override)
 	else:
-		out_path = os.path.join(out_dir, os.path.basename(in_shapefile))
+		in_base = os.path.splitext(os.path.basename(in_shapefile))[0]
+		model_ext = os.path.splitext(model_raster)[1]
+		out_path= os.path.join(out_dir,in_base+"_RASTER"+model_ext)
 	# read file
 	shp = gpd.read_file(shapefile_path)
 	with rasterio.open(model_raster,'r') as rst:
@@ -305,7 +290,7 @@ def cloud_optimize_inPlace(in_file:str,compress="LZW") -> None:
 	os.remove(intermediate_file)
 
 
-def shapefileToMask(in_shapefile,model_raster,out_dir,name_override=None,clean=True,temp_dir_override=None,binary=True):
+def shapefileConversion(in_shapefile,model_raster,out_dir,name_override=None,clean=True,temp_dir_override=None,binary=True,*args,**kwargs):
 	## generate output filename and tempDir
 	in_product = os.path.basename(model_raster).split(".")[0]
 	in_crop = os.path.basename(in_shapefile).split(".")[0]
@@ -318,16 +303,16 @@ def shapefileToMask(in_shapefile,model_raster,out_dir,name_override=None,clean=T
 		log.info("Reprojecting shapefile")
 		shpRep = reprojectShapefile(in_shapefile,model_raster,tempDir)
 		log.info("Converting to raster")
-		rasRaw = shapefileToRaster(shpRep,model_raster,tempDir)
-		log.info("Resampling raster")
-		rasRes = resampleRaster(rasRaw,model_raster,tempDir)
-		log.info("Clipping and aligning extents")
-		if binary:
-			rasAligned = clipAndAlignRasters(rasRes,model_raster,tempDir)
-			log.info("Converting to binary mask")
-			rasFinal = rasterToBinary(rasAligned,out_dir,out_base)
-		else:
-			rasFinal = clipAndAlignRasters(rasRes,model_raster,out_dir,out_base)
+		rasFinal = shapefileToRaster(shpRep,model_raster,tempDir,*args,**kwargs)
+		# log.info("Resampling raster")
+		# rasRes = resampleRaster(rasRaw,model_raster,tempDir)
+		# log.info("Clipping and aligning extents")
+		# if binary:
+		# 	rasAligned = clipAndAlignRasters(rasRes,model_raster,tempDir)
+		# 	log.info("Converting to binary mask")
+		# 	rasFinal = rasterToBinary(rasAligned,out_dir,out_base)
+		# else:
+		# 	rasFinal = clipAndAlignRasters(rasRes,model_raster,out_dir,out_base)
 		log.info("Cloud-optimizing output")
 		cloud_optimize_inPlace(rasFinal)
 		log.info("Done. Output is at {}".format(rasFinal))
@@ -341,7 +326,7 @@ def shapefileToMask(in_shapefile,model_raster,out_dir,name_override=None,clean=T
 			log.warning("Not deleting intermediate files in {}".format(tempDir))
 
 
-def rasterToMask(in_raster,model_raster,out_dir,name_override=None,clean=True,temp_dir_override=None,binary=True):
+def rasterConversion(in_raster,model_raster,out_dir,name_override=None,clean=True,temp_dir_override=None,binary=True):
 	in_product = os.path.basename(model_raster).split(".")[0]
 	in_crop = os.path.basename(in_raster).split(".")[0]
 	out_base = name_override or "{0}.{1}.tif".format(in_product,in_crop)
@@ -408,6 +393,13 @@ def main():
 		default=None,
 		help="Override the default file naming convention"
 		)
+	parser.add_argument('-zf',
+		'--zone_field',
+		type=str,
+		required=False,
+		default="ID",
+		help="If converting shapefile to admin zones, what field name to use for zones"
+		)
 	parser.add_argument("-k",
 		"--keep_intermediate",
 		action='store_false',
@@ -421,9 +413,9 @@ def main():
 		binary = False
 
 	if args.input_type == "RASTER":
-		rasterToMask(args.in_shapefile,args.model_raster,args.out_dir,args.name_override,args.keep_intermediate,binary=binary)
+		rasterConversion(args.in_shapefile,args.model_raster,args.out_dir,args.name_override,args.keep_intermediate,binary=binary)
 	else:
-		shapefileToMask(args.in_shapefile,args.model_raster,args.out_dir,args.name_override,args.keep_intermediate,binary=binary)
+		shapefileConversion(args.in_shapefile,args.model_raster,args.out_dir,args.name_override,args.keep_intermediate,binary=binary,args.zone_field)
 
 
 if __name__ == "__main__":
