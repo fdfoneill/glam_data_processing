@@ -33,11 +33,9 @@ setup(name='glam_data_processing',
 			'sqlalchemy',
 			'pymysql',
 			'gdal',
-			# 'dask',
-			# 'dask.distributed',
-			# 'xarray',
-			# 'tlz',
-			'rasterio'
+			'rasterio',
+			'geopandas',
+			'pyproj'
 			],
 		# tests
 		test_suite='nose.collector',
