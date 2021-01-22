@@ -927,7 +927,7 @@ def isAvailable(product:str, date:str) -> bool:
 		day = dateObj.strftime("%d".zfill(2))
 		url = f"https://land.copernicus.vgt.vito.be/PDF/datapool/Vegetation/Soil_Water_Index/Daily_SWI_12.5km_Global_V3/{year}/{month}/{day}/SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1/c_gls_SWI_{year}{month}{day}1200_GLOBE_ASCAT_V3.1.1.nc"
 		with requests.Session() as session:
-			session.auth = (self.swiUsername, self.swiPassword)
+			session.auth = (credentials["swiUsername"], credentials['swiPassword'])
 			request = session.request('get',url)
 			if request.status_code == 200:
 				if request.headers['Content-Type'] == 'application/octet-stream':
