@@ -50,7 +50,7 @@ def updateBaselines(product, date:datetime, n_workers=20, block_scale_factor= 1,
     input_paths = _listFiles(product,date)
     # check to make sure we got at least 10
     if len(input_paths) < 10:
-        raise OperationalError(f"Only {len(input_paths)} input image paths found")
+        raise UnavailableError(f"Only {len(input_paths)} input image paths found")
     # get raster metadata and dimensions
     with rasterio.open(input_paths[0]) as tempmeta:
         metaprofile = tempmeta.profile
