@@ -868,6 +868,23 @@ def isAvailable(product:str, date:str) -> bool:
 		except:
 			raise BadInputError(f"Failed to parse input '{date}' as a date. Please use format YYYY-MM-DD or YYYY.DOY")
 
+
+	# find repository credentials
+	try:
+		readCredentialsFile()
+	except NoCredentialsError:
+		log.warning("No credentials file found. Reading directly from environment variables.")
+	credentials = {}
+	try:
+		credentials['merraUsername'] = os.environ['merrausername']
+		credentials['merraPassword'] = os.environ['merrapassword']
+		credentials['swiUsername'] = os.environ['swiusername']
+		credentials['swiPassword'] = os.environ['swipassword']
+	except KeyError:
+		log.error("At least one data access credential is not set. Use 'glamconfigure' on command line to set archive credentials.")
+		return ()
+
+
 	# merra-2 always requires special behavior
 	if product in ["merra-2", "merra-2-min", "merra-2-max", "merra-2-mean"]:
 		product = "merra-2"
