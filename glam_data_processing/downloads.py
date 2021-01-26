@@ -665,7 +665,7 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 
-	def downloadMyd13q1 (date:str, out_dir:str, file_name_override:str = None, *args, **kwargs) -> tuple:
+	def downloadMyd13q1(date:str, out_dir:str, file_name_override:str = None, *args, **kwargs) -> tuple:
 		"""
 		Given date of MYD13Q1 product, downloads file to directory if possible
 		Returns tuple containing file path or empty list if download failed
@@ -682,13 +682,30 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 
-	def downloadMod13q4n (date:str, out_dir:str, file_name_override:str = None, *args, **kwargs) -> tuple:
+	def downloadMod13q4n(date:str, out_dir:str, file_name_override:str = None, *args, **kwargs) -> tuple:
 		"""
-		Given date of MYD13Q1 product, downloads file to directory if possible
+		Given date of MOD13Q4N product, downloads file to directory if possible
 		Returns tuple containing file path or empty list if download failed
 		Downloaded files are COGs in sinusoidal projection
 		"""
 		product = "MOD13Q4N"
+		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override default file name if user requests it
+		if file_name_override is not None:
+			outPath = os.path.join(out_dir,file_name_override)
+		else:
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
+
+
+	def downloadVnp09h1(date:str, out_dir:str, file_name_override:str=None, *args, **kwargs) -> tuple:
+		"""
+		Given date of VNP09H1 product, downloads file to directory if possible
+		Returns tuple containing file path or empty list if download failed
+		Downloaded files are COGs in sinusoidal projection
+		"""
+		product = "VNP09H1"
 		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
 		# override default file name if user requests it
 		if file_name_override is not None:
@@ -735,7 +752,8 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"MYD09Q1":downloadMyd09q1,
 		"MOD13Q1":downloadMod13q1,
 		"MYD13Q1":downloadMyd13q1,
-		"MOD13Q4N":downloadMod13q4n
+		"MOD13Q4N":downloadMod13q4n,
+		"VNP09H1":downloadVnp09h1
 		}
 
 	# format date to YYYY-MM-DD
