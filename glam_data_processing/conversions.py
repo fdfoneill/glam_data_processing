@@ -21,6 +21,7 @@ import argparse, gdal, glob, os, rasterio, shutil, subprocess, sys
 import geopandas as gpd
 from pyproj import CRS
 from rasterio import features
+from rasterio.enums import Resampling
 from gdalnumeric import *
 #print(sys.executable)
 
@@ -133,20 +134,39 @@ def reprojectShapefile(in_shapefile, model_raster, out_dir, name_override=None) 
 	return out_shapefile_path
 
 
-def resampleRaster(in_raster,model_raster,out_dir,name_override=None):
+def resampleRaster(in_raster,model_raster,out_dir,name_override=None,method=Resampling.nearest):
 	if name_override:
 		out_name = os.path.join(out_dir,name_override)
 	else:
 		in_base,in_ext = os.path.splitext(os.path.basename(in_raster))
 		out_name = os.path.join(out_dir,in_base+"_RESAMPLED"+in_ext)
 		#print(out_name)
-	# get x and y resolution
-	result = arcpy.GetRasterProperties_management(model_raster, "CELLSIZEX")
-	sizeX = result.getOutput(0)
-	result = arcpy.GetRasterProperties_management(model_raster, "CELLSIZEY")
-	sizeY = result.getOutput(0)
-	# perform resampling
-	arcpy.Resample_management(in_raster,out_name,"{0} {1}".format(sizeX,sizeY))
+	# get input metadata
+	with rasterio.open(in_raster) as ds:
+		meta_profile = ds.profile
+	width = meta_profile['width']
+	height = meta_profile['height']
+	# copy input file
+	with open(in_raster,'rb') as rf:
+		with open(out_name,'wb') as wf:
+			shutil.copyfileobj(rf,wf)
+	# resample with rasterio
+	with rasterio.open(out_name) as dataset:
+		# resample data to target shape
+		data = dataset.read(
+			out_shape = (
+				dataset.count,
+				height,
+				width
+			),
+			resampling = method
+		)
+		# scale image transform
+		transform = dataset.transform * dataset.transform.scale(
+			(dataset.width / data.shape[-1]),
+			(dataset.height / data.shape[-2])
+		)
+
 	return out_name
 
 
