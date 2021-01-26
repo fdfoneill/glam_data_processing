@@ -144,8 +144,16 @@ def resampleRaster(in_raster,model_raster,out_dir,name_override=None,method=Resa
 	# get model metadata
 	with rasterio.open(model_raster) as ds:
 		meta_profile = ds.profile
-	width = meta_profile['width']
-	height = meta_profile['height']
+		gt = ds.affine
+		model_pixelSize_x = gt[0]
+		model_pixelSize_y = gt[4]
+	with rasterio.open(in_raster) as ds:
+		input_profile = ds.profile
+		gt = ds.affine
+		input_pixelSize_x = gt[0]
+		input_pixelSize_y = gt[4]
+	new_width = input_profile['width'] * (input_pixelSize_x/model_pixelSize_x)
+	new_height = input_profile['height'] * (input_pixelSize_y/model_pixelSize_y)
 	# copy input file
 	with open(in_raster,'rb') as rf:
 		with open(out_name,'wb') as wf:
@@ -156,8 +164,8 @@ def resampleRaster(in_raster,model_raster,out_dir,name_override=None,method=Resa
 		data = dataset.read(
 			out_shape = (
 				dataset.count,
-				height,
-				width
+				new_height,
+				new_width
 			),
 			resampling = method
 		)
