@@ -141,8 +141,8 @@ def resampleRaster(in_raster,model_raster,out_dir,name_override=None,method=Resa
 		in_base,in_ext = os.path.splitext(os.path.basename(in_raster))
 		out_name = os.path.join(out_dir,in_base+"_RESAMPLED"+in_ext)
 		#print(out_name)
-	# get input metadata
-	with rasterio.open(in_raster) as ds:
+	# get model metadata
+	with rasterio.open(model_raster) as ds:
 		meta_profile = ds.profile
 	width = meta_profile['width']
 	height = meta_profile['height']
@@ -255,8 +255,45 @@ def clipAndAlignRasters(input_raster,clip_raster,out_dir,name_override=None):
 	else:
 		in_base,in_ext = os.path.splitext(os.path.basename(input_raster))
 		out_name = os.path.join(out_dir,in_base+"_ALIGNED"+in_ext)
-	arcpy.env.snapRaster= clip_raster
-	arcpy.Clip_management(input_raster,out_raster=out_name,in_template_dataset=clip_raster,maintain_clipping_extent="MAINTAIN_EXTENT")
+	# get metadata
+	with rasterio.open(clip_raster) as ds:
+		clip_profile = ds.profile
+	with rasterio.open(input_raster) as ds:
+		input_profile = ds.profile
+	# clip raster
+	intermediate_raster = os.path.join(out_dir,"CLIP_TEMP.tif")
+	ds = gdal.Open(input_raster,0)
+	geoTransform = ds.GetGeoTransform()
+	minx = geoTransform[0]
+	maxy = geoTransform[3]
+	maxx = minx + geoTransform[1] * ds.RasterXSize
+	miny = maxy + geoTransform[5] * data.RasterYSize
+	subprocess.call('gdal_translate -projwin'+ ' '.join([str(x) for x in [minx, maxy, maxx, miny]]) + f' -of GTiff {input_raster} {intermediate_raster}', shell=True)
+	ds.close()
+	del ds
+	# align rasters
+	## get more metadata
+	with rasterio.open(intermediate_raster) as ds:
+		kwargs = ds.meta.copy()
+		intermediate_profile = ds.profile
+	kwargs.update({
+		'crs':clip_profile.crs,
+		'transform':clip_profile.transform,
+		'width':clip_profile.width,
+		'height':clip_profile.height
+	})
+	with rasterio.open(intermediate_raster) as src:
+		with rasterio.open(out_name,'w',**kwargs) as dst:
+			reproject(
+				source=rasterio.band(src,1),
+				destination=rasterio.band(dst,1),
+				src_transform=input_profile.transform,
+				src_crs = input_profile.crs,
+				dst_transform = clip_profile.transform,
+				dst_crs = clip_profile.crs,
+				resampling=Resampling.nearest
+			)
+	os.remove(intermediate_raster)
 	return out_name
 
 
