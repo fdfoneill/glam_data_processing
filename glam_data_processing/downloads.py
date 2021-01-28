@@ -716,6 +716,24 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		return tuple([octvi.globalVi(product,date,outPath,overwrite=True)])
 
 
+	def downloadMod09a1(date:str, out_dir:str, file_name_override:str=None, *args, **kwargs) -> tuple:
+		"""
+		Given date of MOD09A1 product, downloads file to directory if possible
+		Returns tuple containing file path or empty list if download failed
+		Downloaded files are COGs in sinusoidal projection
+		"""
+		product = "MOD09A1"
+		vi = kwargs.get("vi","NDWI")
+		jDate = datetime.strptime(date,"%Y-%m-%d").strftime("%Y.%j")
+		# override default file name if user requests it
+		if file_name_override is not None:
+			outPath = os.path.join(out_dir,file_name_override)
+		else:
+			outPath = os.path.join(out_dir,f"{product}.{jDate}.tif")
+
+		return tuple([octvi.globalVi(product,date,outPath,overwrite=True, vi=vi)])
+
+
 	# special merra-2 wrapper functions
 
 
@@ -753,7 +771,8 @@ def pullFromSource(product:str,date:str,output_directory:str,file_name_override:
 		"MOD13Q1":downloadMod13q1,
 		"MYD13Q1":downloadMyd13q1,
 		"MOD13Q4N":downloadMod13q4n,
-		"VNP09H1":downloadVnp09h1
+		"VNP09H1":downloadVnp09h1,
+		"MOD09A1":downloadMod09a1
 		}
 
 	# format date to YYYY-MM-DD
